@@ -34,6 +34,7 @@ function layout:_new()
 
     orientation = layout.orientation.horizontal,
     selection = nil,
+    previousSelection = nil,
     splitNext = false
   }
 
@@ -67,7 +68,7 @@ function layout:addWindow(win)
 end
 
 function layout:splitCurrent(orientation)
-  local selection = self:_getSelection()
+  local selection = self:_getSelectedNode()
   selection.orientation = orientation
   if #selection.children > 0 then
     selection:_update(selection.frame)
@@ -87,7 +88,7 @@ function layout:_split(win)
   local newParent = layout:_newChild(self.parent)
   local parentIdx = fnutils.indexOf(self.parent.children, self)
   self.parent.children[parentIdx] = newParent
-  self.parent.selection = newParent
+  self.parent:_setSelection(newParent)
   self.parent = newParent
 
   local sibling = layout:_newChild(newParent)
@@ -95,7 +96,7 @@ function layout:_split(win)
 
   newParent.children = {self, sibling}
   newParent.orientation = self.orientation
-  newParent.selection = sibling
+  newParent:_setSelection(sibling)
   newParent:_update(self.frame)
 
   self.splitNext = false
@@ -107,7 +108,7 @@ function layout:_addWindow(win)
   local selectedIdx = fnutils.indexOf(self.children, self.selection) or #self.children
   table.insert(self.children, selectedIdx+1, child)
   self:_update(self.frame)
-  self.selection = child
+  self:_setSelection(child)
 end
 
 function layout:removeWindowById(id)
@@ -131,7 +132,7 @@ function layout:_removeWindowById(id)
 end
 
 function layout:_focusSelection()
-  local sel = self:_getSelection()
+  local sel = self:_getSelectedNode()
   if sel.window then sel.window:focus() end
 end
 
@@ -155,7 +156,8 @@ local function _moveNode(node, newParent, newIdx)
 
   -- Fix selection
   if oldParent ~= newParent and oldParent.selection == node then
-    oldParent.selection = oldParent.children[math.min(oldIdx, #oldParent.children)]
+    local defaultSelection = oldParent.children[math.min(oldIdx, #oldParent.children)]
+    oldParent:_restoreSelection(defaultSelection)
   end
 
   -- Update state
@@ -249,19 +251,19 @@ function layout:_moveInDirection(direction)
 end
 
 function layout:focus(direction)
-  local node, idx = self:_getSelection():_moveInDirection(direction)
+  local node, idx = self:_getSelectedNode():_moveInDirection(direction)
   if node and node.children[idx] then
-    node.selection = node.children[idx]
+    node:_setSelection(node.children[idx])
     self:_focusSelection()
   end
 end
 
 function layout:move(direction)
-  local node = self:_getSelection()
+  local node = self:_getSelectedNode()
   local newAncestor, idx = node:_moveInDirection(direction)
   if newAncestor and newAncestor.children[idx] then
     -- Descend down selection path to find final destination
-    local newSibling = newAncestor.children[idx]:_getSelection()
+    local newSibling = newAncestor.children[idx]:_getSelectedNode()
     local newParent  = newSibling.parent
     local newIdx     = fnutils.indexOf(newParent.children, newSibling)
     if incrementForDirection(direction) > 0 or newParent ~= node.parent then
@@ -281,17 +283,39 @@ end
 function layout:_select()
   local node = self
   while node and node.parent do
-    node.parent.selection = node
+    node.parent:_setSelection(node)
     node = node.parent
   end
 end
 
-function layout:_getSelection()
+function layout:_getSelectedNode()
   local node = self
   while node.selection do
     node = node.selection
   end
   return node
+end
+
+-- Set the current selection, remembering the previous one.
+function layout:_setSelection(selection)
+  if selection ~= self.selection then
+    if fnutils.contains(self.children, self.selection) then  -- don't overwrite previousSelection with not-a-child
+      self.previousSelection = self.selection
+    end
+    self.selection = selection
+  end
+end
+
+-- Pick a different selection now that the old one is gone.
+function layout:_restoreSelection(default)
+  if self.previousSelection and
+     fnutils.contains(self.children, self.previousSelection) then
+    self.selection = self.previousSelection
+  elseif default then
+    self.selection = default
+  else
+    self.selection = self.children[#self.children]
+  end
 end
 
 function layout:_containsPoint(point)
