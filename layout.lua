@@ -11,24 +11,8 @@ layout.direction = {
   left = 0, right = 1, up = 2, down = 3
 }
 
-function layout:new(screen)
-  obj = layout:_new()
-  obj.screen = screen
-  obj.frame = screen:frame()
-  obj.selectedParent = nil  -- used to select parent nodes instead of bottom-level nodes
-  obj.root = obj
-  return obj
-end
-
-function layout:_newChild(parent)
-  obj = layout:_new()
-  obj.parent = parent
-  obj.root = parent.root
-  return obj
-end
-
 function layout:_new()
-  obj = {
+  local obj = {
     root = nil,
     parent = nil,
     children = {},
@@ -47,6 +31,50 @@ function layout:_new()
   return obj
 end
 
+-- Creates a new root layout node.
+function layout:new(screen)
+  local root = layout:_new()
+  root.screen = screen
+  root.selectedParent = nil  -- used to select parent nodes instead of bottom-level nodes
+  root.orientation = nil
+  root.root = root
+
+  local topLevel = layout:_new()
+  topLevel.root = root
+  topLevel.parent = root
+  topLevel.frame = screen:frame()
+
+  root.children = {topLevel}
+  root.selection = topLevel
+  return root
+end
+
+function layout:_newChild(parent)
+  local obj = layout:_new()
+  obj.parent = parent
+  obj.root = parent.root
+  return obj
+end
+
+function layout:_newParent(child)
+  local parent = layout:_new()
+  parent.root = child.root
+  parent.parent = child.parent
+  parent.children = {child}
+  parent.selection = child
+  parent.frame = child.frame
+
+  local grandparent = parent.parent or parent.root
+  local idx = fnutils.indexOf(grandparent.children, child)
+  table.remove(grandparent.children, idx)
+  table.insert(grandparent.children, idx, parent)
+  if grandparent.selection == child then grandparent.selection = parent end
+
+  child.parent = parent
+
+  return parent
+end
+
 function layout:setDirection(dir)
   self.orientation = dir
   self:_update(self.frame)
@@ -60,13 +88,14 @@ function layout:addWindow(win)
     if self.splitNext then
       self:_split(win)
     else
-      if self.parent then
+      if self.parent ~= self.root then
         self.parent:_addWindow(win)
       else
         -- top-level
         self:_addWindow(win)
       end
     end
+
   end
   self:_focusSelection()
 end
@@ -205,12 +234,16 @@ local function _moveNode(node, newParent, newIdx)
 
   -- Update state
   if newParent then
-    newParent:_update(newParent.frame)
+    newParent:update()
   end
-  if #oldParent.children == 0 and not oldParent.screen then
+  if oldParent.parent and #oldParent.children == 0 then
     oldParent:_remove()
+  elseif oldParent.parent and #oldParent.children == 1 and #oldParent.children[1].children > 0 then
+    -- Node now contains just a single container, so it can be culled.
+    -- This has no effect on window position.
+    oldParent:_removeLink()
   elseif oldParent ~= newParent then
-    oldParent:_update(oldParent.frame)
+    oldParent:update()
   end
 end
 
@@ -218,9 +251,18 @@ function layout:_remove()
   _moveNode(self, nil, nil)
 end
 
+function layout:_removeLink()
+  _moveNode(self.children[1], self.parent, fnutils.indexOf(self.parent.children, self))
+  -- _moveNode calls _remove automatically
+end
+
 function layout:update()
-  -- This is only called on the top-level node.
-  self:_update(self.screen:frame())
+  -- This is only called on the root node.
+  if self.root == self then
+    self:_update(self.screen:frame())
+  else
+    self:_update(self.frame)
+  end
 end
 
 -- Recalculates the frames of this node and its descendants, moves windows into place.
@@ -270,26 +312,33 @@ end
 -- node with an index out-of-bounds on the side we're trying to go to.
 function layout:_moveInDirection(direction)
   if not self:_selection() then
-    if self.parent then return self.parent:_moveInDirection(direction) end
+    -- Bottom of tree, go up.
+    if self.parent and self.parent ~= self.root then
+      return self.parent:_moveInDirection(direction)
+    end
     return nil
   end
 
   local orientation = orientationForDirection(direction)
-  local idx = fnutils.indexOf(self.children, self:_selection())
-  local increment = incrementForDirection(direction)
-  if self.orientation == orientation then idx = idx + increment end
+  local idx = fnutils.indexOf(self.children, self:_selection()) + incrementForDirection(direction)
 
-  if self.orientation ~= orientation or self.children[idx] == nil then
-    -- Can't go this way; move up one level and try again.
-    if self.parent then
-      return self.parent:_moveInDirection(direction)
-    else
-      -- If we're already at the top, return an out-of-bounds index.
-      return self, idx
-    end
-  else
+  if self.orientation == orientation and self.children[idx] then
     -- Set new focus.
     return self, idx
+  else
+    -- Can't go this way; move up one level and try again.
+    if self.parent and self.parent ~= self.root then
+      return self.parent:_moveInDirection(direction)
+    else
+      -- We're already at the top
+      if self.orientation == orientation then
+        -- Return an out-of-bounds index
+        return self, idx
+      else
+        -- Signal that we tried to go a different direction
+        return self, -1
+      end
+    end
   end
 end
 
@@ -304,23 +353,30 @@ end
 
 function layout:move(direction)
   local node = self:_getSelectedNode()
-  hs.alert.show('moving '..tostring(node))
   local newAncestor, idx = node:_moveInDirection(direction)
   if newAncestor and newAncestor.children[idx] then
-    -- Descend down selection path to find final destination
+    -- Descend down selection path to find final destination.
     local newSibling = newAncestor.children[idx]:_getSelectedNode()
     local newParent  = newSibling.parent
     local newIdx     = fnutils.indexOf(newParent.children, newSibling)
     if incrementForDirection(direction) > 0 or newParent ~= node.parent then
+      -- put it to the right of newSibling
       newIdx = newIdx + 1
-    end
+    end  -- otherwise, put it to the left
 
     _moveNode(node, newParent, newIdx)
   elseif newAncestor then
-    -- Add node to outer edge of ancestor
-    -- TODO handle auto-creation of a new parent
-    if idx < 1 then return end
-    _moveNode(node, newAncestor, idx)
+    -- newAncestor is the top-level container
+    if orientationForDirection(direction) == newAncestor.orientation then
+      -- Move something to the end of the top-level container.
+      _moveNode(node, newAncestor, math.max(idx, 1))
+    else
+      -- The user wants to move perpendicular to the direction of the top-level container.
+      -- Create a new top-level container.
+      local parent = layout:_newParent(newAncestor)
+      parent.orientation = orientationForDirection(direction)
+      _moveNode(node, parent, (incrementForDirection(direction) < 0) and 1 or 2)
+    end
   end
   node:_select()
 end
@@ -386,13 +442,13 @@ end
 function layout:__tostring()
   -- return '[x='..self.frame.x..',y='..self.frame.y..',w='..self.frame.w..',h='..self.frame.h..']'
   if self.window then
-    return self.window:title()
+    return '<'..self.window:title()..'>'
   else
     str = '['..((self.orientation == layout.orientation.horizontal) and 'H' or 'V')
     for i, c in pairs(self.children) do
       str = str..' '
       if c == self.selection then str = str..'*' end
-      str = str..'<'..tostring(c)..'>'
+      str = str..tostring(c)
     end
     str = str..']'
     return str
