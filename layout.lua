@@ -15,17 +15,21 @@ function layout:new(screen)
   obj = layout:_new()
   obj.screen = screen
   obj.frame = screen:frame()
+  obj.selectedParent = nil  -- used to select parent nodes instead of bottom-level nodes
+  obj.root = obj
   return obj
 end
 
 function layout:_newChild(parent)
   obj = layout:_new()
   obj.parent = parent
+  obj.root = parent.root
   return obj
 end
 
 function layout:_new()
   obj = {
+    root = nil,
     parent = nil,
     children = {},
     frame = nil,
@@ -49,8 +53,8 @@ function layout:setDirection(dir)
 end
 
 function layout:addWindow(win)
-  if self.selection then
-    self.selection:addWindow(win)
+  if self:_selection() then
+    self:_selection():addWindow(win)
   else
     -- If split flag is true, we split this cell. Otherwise, we add the window to the parent.
     if self.splitNext then
@@ -75,6 +79,44 @@ function layout:splitCurrent(orientation)
   else
     selection.splitNext = true
   end
+end
+
+function layout:selectParent()
+  self.selectedParent = self:_getSelectedNode().parent
+  hs.alert.show(self.selectedParent)
+end
+
+function layout:selectChild()
+  local newSelection = self:_getSelectedNode().selection
+  if newSelection and #newSelection.children > 0 then
+    self.selectedParent = newSelection
+  elseif newSelection then
+    -- Erase the override and select it normally
+    newSelection:_select()
+  end
+  self:showFocus()
+end
+
+function layout:showFocus()
+  hs.alert.show(self:_getSelectedNode())
+end
+
+function layout:closeSelected()
+  local windows = self:_getSelectedNode():allWindows()
+  fnutils.each(windows, function(win) win:close() end)
+end
+
+function layout:allWindows()
+  if self.window then
+    return {self.window}
+  end
+  local windows = {}
+  for i, c in pairs(self.children) do
+    for j, w in pairs(c:allWindows()) do
+      table.insert(windows, w)
+    end
+  end
+  return windows
 end
 
 local function findIdx(t, f)
@@ -112,6 +154,7 @@ function layout:_addWindow(win)
 end
 
 function layout:removeWindowById(id)
+  self.root.selectedParent = nil
   local result = self:_removeWindowById(id)
   self:_focusSelection()
   return result
@@ -226,13 +269,13 @@ end
 -- If the top-level node is reached and there is no container in that direction, returns the top-level
 -- node with an index out-of-bounds on the side we're trying to go to.
 function layout:_moveInDirection(direction)
-  if not self.selection then
+  if not self:_selection() then
     if self.parent then return self.parent:_moveInDirection(direction) end
     return nil
   end
 
   local orientation = orientationForDirection(direction)
-  local idx = fnutils.indexOf(self.children, self.selection)
+  local idx = fnutils.indexOf(self.children, self:_selection())
   local increment = incrementForDirection(direction)
   if self.orientation == orientation then idx = idx + increment end
 
@@ -251,6 +294,7 @@ function layout:_moveInDirection(direction)
 end
 
 function layout:focus(direction)
+  self.root.selectedParent = nil
   local node, idx = self:_getSelectedNode():_moveInDirection(direction)
   if node and node.children[idx] then
     node:_setSelection(node.children[idx])
@@ -260,6 +304,7 @@ end
 
 function layout:move(direction)
   local node = self:_getSelectedNode()
+  hs.alert.show('moving '..tostring(node))
   local newAncestor, idx = node:_moveInDirection(direction)
   if newAncestor and newAncestor.children[idx] then
     -- Descend down selection path to find final destination
@@ -280,7 +325,31 @@ function layout:move(direction)
   node:_select()
 end
 
+-- Use this method to get the selection of a node, unless you are deciding where to place a new window inside this node.
+function layout:_selection()
+  if self.root.selectedParent == self then
+    return nil  -- terminate selection path early
+  else
+    return self.selection
+  end
+end
+
+-- Gets the bottom-level node that is selected from this node. Takes selectedParent into consideration, if it is a
+-- child node.
+function layout:_getSelectedNode()
+  local node = self
+  while node.selection and node.root.selectedParent ~= node do
+    node = node.selection
+  end
+  return node
+end
+
+-- Ensure that this node is in the selection path.
 function layout:_select()
+  if self.root.selectedParent ~= self then
+    self.root.selectedParent = nil
+  end
+
   local node = self
   while node and node.parent do
     node.parent:_setSelection(node)
@@ -288,15 +357,7 @@ function layout:_select()
   end
 end
 
-function layout:_getSelectedNode()
-  local node = self
-  while node.selection do
-    node = node.selection
-  end
-  return node
-end
-
--- Set the current selection, remembering the previous one.
+-- Set the current selection path, remembering the previous one.
 function layout:_setSelection(selection)
   if selection ~= self.selection then
     if fnutils.contains(self.children, self.selection) then  -- don't overwrite previousSelection with not-a-child
