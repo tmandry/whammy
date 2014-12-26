@@ -33,12 +33,15 @@ end
 
 -- Creates a new root layout node.
 function layout:new(screen)
+  -- The root is tied to a screen and is never replaced.
   local root = layout:_new()
   root.screen = screen
   root.selectedParent = nil  -- used to select parent nodes instead of bottom-level nodes
   root.orientation = nil
   root.root = root
 
+  -- The top level node is where the actual layout tree begins.
+  -- It may be replaced, but one will always exist.
   local topLevel = layout:_new()
   topLevel.root = root
   topLevel.parent = root
@@ -82,6 +85,7 @@ end
 
 function layout:addWindow(win)
   if self:_selection() then
+    -- Descend down selection path
     self:_selection():addWindow(win)
   else
     -- If split flag is true, we split this cell. Otherwise, we add the window to the parent.
@@ -112,6 +116,10 @@ end
 
 function layout:selectParent()
   self.selectedParent = self:_getSelectedNode().parent
+  if self.selectParent == self.root then
+    -- Don't allow selecting root node
+    self.selectParent = self.root.children[1]
+  end
   hs.alert.show(self.selectedParent)
 end
 
@@ -238,7 +246,7 @@ local function _moveNode(node, newParent, newIdx)
   end
   if oldParent.parent and #oldParent.children == 0 then
     oldParent:_remove()
-  elseif oldParent.parent and #oldParent.children == 1 and #oldParent.children[1].children > 0 then
+  elseif oldParent.parent ~= node.root and #oldParent.children == 1 and #oldParent.children[1].children > 0 then
     -- Node now contains just a single container, so it can be culled.
     -- This has no effect on window position.
     oldParent:_removeLink()
@@ -248,6 +256,7 @@ local function _moveNode(node, newParent, newIdx)
 end
 
 function layout:_remove()
+  if self.parent == self.root then return end  -- don't delete the top-level node
   _moveNode(self, nil, nil)
 end
 
