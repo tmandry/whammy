@@ -266,7 +266,6 @@ function layout:_removeLink()
 end
 
 function layout:update()
-  -- This is only called on the root node.
   if self.root == self then
     self:_update(self.screen:frame())
   else
