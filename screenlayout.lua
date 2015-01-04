@@ -7,35 +7,71 @@
 
 local screenlayout = {}
 
+local layout = require('wm.layout')
+local spacetracker = require('wm.spacetracker')
 local windowtracker = require('wm.windowtracker')
-local screenmanager = require('wm.screenmanager')
 
 function screenlayout:new()
   local obj = {
-    screens = {}
+    screens = {},  -- Keeps the screen object and the currently visible layout for each screen.
+    layouts = {},  -- A list of all layout objects.
+    selectedLayout = nil
   }
-
   setmetatable(obj, self)
   self.__index = self
 
   for i, screen in pairs(hs.screen.allScreens()) do
-    table.insert(obj.screens, {screen = screen})
+    table.insert(obj.screens, {screen = screen, layout = nil})
   end
-  obj.tracker = windowtracker:new({}, function(...) obj:_handleWindowEvent(...) end)
-  obj.tracker:start()
+
+  obj.windowtracker = windowtracker:new({}, function(...) obj:_handleWindowEvent(...) end)
+  obj.windowtracker:start()
+
+  obj.spacetracker = spacetracker:new(obj.layouts, function(...) obj:_handleSpaceChange(...) end)
+
+  -- Create initial layouts for the current space.
+  obj:_handleSpaceChange({length = #obj.screens})
 
   return obj
 end
 
+function screenlayout:_handleSpaceChange(visibleLayouts)
+  -- visibleLayouts uses same screen indexes as us, but may contain some nil values.
+  assert(visibleLayouts.length == #self.screens, "spacetracker returned unexpected number of screens")
+
+  local oldSelectedScreenIdx = self:_getLayoutIndex(self.selectedLayout)
+
+  for i = 1, visibleLayouts.length do
+    -- Remove empty and non-visible layouts.
+    if self.screens[i].layout and self.screens[i].layout:isEmpty() then
+      self:_removeLayout(i)
+    end
+
+    if visibleLayouts[i] then
+      self.screens[i].layout = visibleLayouts[i]
+    else
+      self:_createLayout(i)
+    end
+  end
+
+  -- Use the OS behavior to determine which screen should be focused. Default to the last focused screen.
+  local focusedWindow = hs.window.focusedWindow()
+  local screenIdx = focusedWindow and self:_getScreenIndex(focusedWindow:screen()) or nil
+  if screenIdx then
+    self.selectedLayout = self.screens[screenIdx].layout
+    -- TODO set layout selection to match focused window
+  else
+    self.selectedLayout = self.screens[oldSelectedScreenIdx or 1].layout
+    self.selectedLayout:focusSelection()
+  end
+end
+
 function screenlayout:_handleWindowEvent(win, event)
   if event == hs.uielement.watcher.windowCreated then
-    self:_ensureCurrentLayoutExists(win:screen())
-    self.currentLayout:addWindow(win)
-  elseif event == hs.uielement.watcher.elementDestroyed and self.currentLayout then
+    self.selectedLayout:addWindow(win)
+  elseif event == hs.uielement.watcher.elementDestroyed then
     local layout = self:_getLayoutForWindow(win)
-    if layout then
-      layout:removeWindowById(win:id())
-    end
+    if layout then layout:removeWindowById(win:id()) end
   end
 end
 
@@ -44,7 +80,7 @@ function screenlayout:_onFocusPastEnd(layout, direction)
   local newIdx = self:_getScreenInDirection(curIdx, direction)
   local layout = self.screens[newIdx].layout
   if layout then
-    self.currentLayout = layout
+    self.selectedLayout = layout
     layout:selectWindowGoingInDirection(direction)
     layout:focusSelection()
   end
@@ -53,29 +89,10 @@ end
 function screenlayout:_onMovePastEnd(layout, node, direction)
   local curIdx = self:_getLayoutIndex(layout)
   local newIdx = self:_getScreenInDirection(curIdx, direction)
-  self:_ensureLayoutExistsForScreenIdx(newIdx)
 
   self.screens[curIdx].layout:removeWindowById(node.window:id())
   self.screens[newIdx].layout:addWindowGoingInDirection(node.window, direction)
-  self.currentLayout = self.screens[newIdx].layout
-end
-
-function screenlayout:_ensureCurrentLayoutExists(defaultScreen)
-  if not self.currentLayout then
-    local idx = self:_getScreenIndex(defaultScreen)
-    self:_ensureLayoutExistsForScreenIdx(idx)
-    self.currentLayout = self.screens[idx].layout
-  end
-end
-
-function screenlayout:_ensureLayoutExistsForScreenIdx(idx)
-  if not self.screens[idx].layout then
-    -- Create layout on this screen for the first time.
-    local layout = layout:new(self.screens[idx].screen)
-    layout.onFocusPastEnd = function(...) self:_onFocusPastEnd(...) end
-    layout.onMovePastEnd = function(...) self:_onMovePastEnd(...) end
-    self.screens[idx].layout = layout
-  end
+  self.selectedLayout = self.screens[newIdx].layout
 end
 
 function screenlayout:_getScreenInDirection(curIdx, direction)
@@ -83,6 +100,21 @@ function screenlayout:_getScreenInDirection(curIdx, direction)
   local newIdx = curIdx + 1
   if newIdx > #self.screens then newIdx = 1 end
   return newIdx
+end
+
+function screenlayout:_createLayout(screenIdx)
+  local layout = layout:new(self.screens[screenIdx].screen)
+  layout.onFocusPastEnd = function(...) self:_onFocusPastEnd(...) end
+  layout.onMovePastEnd = function(...) self:_onMovePastEnd(...) end
+
+  self.screens[screenIdx].layout = layout
+  table.insert(self.layouts, layout)
+  return layout
+end
+
+function screenlayout:_removeLayout(screenIdx)
+  table.remove(self.layouts, hs.fnutils.indexOf(self.layouts, self.screens[screenIdx].layout))
+  self.screens[screenIdx].layout = nil
 end
 
 function screenlayout:_getLayoutForWindow(win)

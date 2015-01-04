@@ -110,7 +110,8 @@ function layout:setDirection(dir)
 end
 
 function layout:addWindow(win)
-  self:_addWindow(win, nil)
+  -- Only called on root
+  self.children[1]:_addWindow(win, nil)
 end
 
 -- Adds a window to this layout that is moving in the given direction.
@@ -203,6 +204,11 @@ end
 function layout:closeSelected()
   local windows = self:_getSelectedNode():allWindows()
   fnutils.each(windows, function(win) win:close() end)
+end
+
+function layout:isEmpty()
+  -- called on root
+  return #self.children[1].children == 0
 end
 
 function layout:allWindows()
@@ -408,7 +414,7 @@ function layout:focus(direction)
   if node and node.children[idx] then
     node:_setSelection(node.children[idx])
     self:focusSelection()
-  elseif node then
+  else
     -- Trying to focus past the end of the top-level container; there is an event for this.
     if self.root.onFocusPastEnd then
       self.root.onFocusPastEnd(self.root, direction)
