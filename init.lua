@@ -1,7 +1,7 @@
 local wm = {}
 
-local screenmanager = require('wm.screenmanager')
+local screenlayout = require('wm.screenlayout')
 
-wm.screenmanager = screenmanager:new()
+wm.screenlayout = screenlayout:new()
 
 return wm

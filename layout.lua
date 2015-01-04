@@ -1,3 +1,13 @@
+-- layout is the tree-based layout of a screen. This is where all the focus and movement commands
+-- are implemented, except moving windows across screens.
+--
+-- layout publishes two events:
+-- onFocusPastEnd(layout, direction) and onMovePastEnd(layout, node, direction)
+-- To use them, set the corresponding attribute on the layout root to your handler function.
+--
+-- layout is a recursive data structure. The root node (created with :new()) has one child which is
+-- the actual top level of the layout tree. This top level node can change.
+
 local fnutils = require "hs.fnutils"
 
 local layout = {}
@@ -10,6 +20,22 @@ layout.orientation = {
 layout.direction = {
   left = 0, right = 1, up = 2, down = 3
 }
+
+local function orientationForDirection(d)
+  if d == layout.direction.left or d == layout.direction.right then
+    return layout.orientation.horizontal
+  else
+    return layout.orientation.vertical
+  end
+end
+
+local function incrementForDirection(d)
+  if d == layout.direction.left or d == layout.direction.up then
+    return -1
+  else
+    return  1
+  end
+end
 
 function layout:_new()
   local obj = {
@@ -84,24 +110,60 @@ function layout:setDirection(dir)
 end
 
 function layout:addWindow(win)
+  self:_addWindow(win, nil)
+end
+
+-- Adds a window to this layout that is moving in the given direction.
+-- For example, if the window is moving to the right (from somewhere on the left), pass right as the
+-- direction and the window will be added to the left side of the layout.
+function layout:addWindowGoingInDirection(win, direction)
+  local topLevel = self.children[1]
+  local idx
+  if incrementForDirection(direction) > 0 then
+    idx = 1
+  else
+    idx = #topLevel.children + 1
+  end
+  self:_addWindow(win, idx)
+end
+
+-- Selects a window, coming into this layout from the given direction.
+function layout:selectWindowGoingInDirection(direction)
+  self.root.selectParent = nil
+
+  if orientationForDirection(direction) == self.orientation then
+    if incrementForDirection(direction) > 0 then
+      self:_setSelection(self.children[1])
+    else
+      self:_setSelection(self.children[#self.children])
+    end
+  end  -- else, keep current selection
+
+  if self.selection then
+    self.selection:selectWindowGoingInDirection(direction)
+  end
+end
+
+-- idx is optional. If nil, the window is added after the selection.
+function layout:_addWindow(win, idx)
   if self:_selection() then
     -- Descend down selection path
-    self:_selection():addWindow(win)
+    self:_selection():_addWindow(win, idx)
   else
     -- If split flag is true, we split this cell. Otherwise, we add the window to the parent.
     if self.splitNext then
       self:_split(win)
     else
       if self.parent ~= self.root then
-        self.parent:_addWindow(win)
+        self.parent:_addWindowToNode(win, idx)
       else
         -- top-level
-        self:_addWindow(win)
+        self:_addWindowToNode(win, idx)
       end
     end
 
   end
-  self:_focusSelection()
+  self:focusSelection()
 end
 
 function layout:splitCurrent(orientation)
@@ -181,11 +243,15 @@ function layout:_split(win)
   self.splitNext = false
 end
 
-function layout:_addWindow(win)
+function layout:_addWindowToNode(win, idx)
+  if not idx then
+    local selectedIdx = fnutils.indexOf(self.children, self.selection) or #self.children
+    idx = selectedIdx + 1
+  end
+
   local child = layout:_newChild(self)
   child.window = win
-  local selectedIdx = fnutils.indexOf(self.children, self.selection) or #self.children
-  table.insert(self.children, selectedIdx+1, child)
+  table.insert(self.children, idx, child)
   self:_update(self.frame)
   self:_setSelection(child)
 end
@@ -193,7 +259,7 @@ end
 function layout:removeWindowById(id)
   self.root.selectedParent = nil
   local result = self:_removeWindowById(id)
-  self:_focusSelection()
+  self:focusSelection()
   return result
 end
 
@@ -211,7 +277,7 @@ function layout:_removeWindowById(id)
   return false
 end
 
-function layout:_focusSelection()
+function layout:focusSelection()
   local sel = self:_getSelectedNode()
   if sel.window then sel.window:focus() end
 end
@@ -261,6 +327,7 @@ function layout:_remove()
 end
 
 function layout:_removeLink()
+  if self.parent == self.root then return end  -- don't delete the top-level node
   _moveNode(self.children[1], self.parent, fnutils.indexOf(self.parent.children, self))
   -- _moveNode calls _remove automatically
 end
@@ -298,26 +365,11 @@ function layout:_update(frame)
   end
 end
 
-local function orientationForDirection(d)
-  if d == layout.direction.left or d == layout.direction.right then
-    return layout.orientation.horizontal
-  else
-    return layout.orientation.vertical
-  end
-end
-
-local function incrementForDirection(d)
-  if d == layout.direction.left or d == layout.direction.up then
-    return -1
-  else
-    return  1
-  end
-end
-
--- Returns the container that is in a certain direction of this one. This could either be a sibling
--- (if direction is in the same orientation as the parent) or a sibling of one of our ancestors (if not).
--- If the top-level node is reached and there is no container in that direction, returns the top-level
--- node with an index out-of-bounds on the side we're trying to go to.
+-- Returns the parent and index of the node that is in a certain direction of this one. This could
+-- either be a sibling (if direction is in the same orientation as the parent) or a sibling of one
+-- of our ancestors (if not). If the top-level node is reached and there is no container in that
+-- direction, returns the top-level node with an index out-of-bounds on the side we're trying to go
+-- to.
 function layout:_moveInDirection(direction)
   if not self:_selection() then
     -- Bottom of tree, go up.
@@ -355,7 +407,12 @@ function layout:focus(direction)
   local node, idx = self:_getSelectedNode():_moveInDirection(direction)
   if node and node.children[idx] then
     node:_setSelection(node.children[idx])
-    self:_focusSelection()
+    self:focusSelection()
+  elseif node then
+    -- Trying to focus past the end of the top-level container; there is an event for this.
+    if self.root.onFocusPastEnd then
+      self.root.onFocusPastEnd(self.root, direction)
+    end
   end
 end
 
@@ -374,16 +431,21 @@ function layout:move(direction)
 
     _moveNode(node, newParent, newIdx)
   elseif newAncestor then
-    -- newAncestor is the top-level container
-    if orientationForDirection(direction) == newAncestor.orientation then
-      -- Move something to the end of the top-level container.
-      _moveNode(node, newAncestor, math.max(idx, 1))
-    else
+    -- idx is out of bounds; newAncestor is the top-level container
+    if orientationForDirection(direction) ~= newAncestor.orientation then
       -- The user wants to move perpendicular to the direction of the top-level container.
       -- Create a new top-level container.
       local parent = layout:_newParent(newAncestor)
       parent.orientation = orientationForDirection(direction)
       _moveNode(node, parent, (incrementForDirection(direction) < 0) and 1 or 2)
+    elseif node.parent == newAncestor then
+      -- Trying to move something past the end of the top-level container; there is an event for this.
+      if self.root.onMovePastEnd then
+        self.root.onMovePastEnd(self.root, node, direction)
+      end
+    else
+      -- Move something out of a lower level to the end of the top-level container.
+      _moveNode(node, newAncestor, math.max(idx, 1))
     end
   end
   node:_select()
