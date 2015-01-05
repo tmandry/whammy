@@ -288,6 +288,22 @@ function layout:focusSelection()
   if sel.window then sel.window:focus() end
 end
 
+function layout:selectWindow(win)
+  if self.window then
+    if win == self.window then
+      self:_select()
+      return true
+    end
+  else
+    for i, child in pairs(self.children) do
+      if child:selectWindow(win) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 -- Moves a node from its current location to a new index in a new parent.
 -- The new parent can be the same as the old parent, or nil, in which case the node is removed.
 -- The new index should refer to an accurate location in the newParent BEFORE the call. So

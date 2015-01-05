@@ -1,5 +1,16 @@
 --- === windowtracker ===
 --- Track all windows on the screen.
+---
+--- You can watch for the following events:
+--- * windowtracker.windowCreated: A window was created.
+--- * windowtracker.windowDestroyed: A window was destroyed.
+--- * windowtracker.mainWindowChanged: The main window was changed. This is usually the same as the
+---   focused window, except for helper dialog boxes like file open windows and the like, which are
+---   not reported by this event.
+--- * windowtracker.windowMoved: A window was moved.
+--- * windowtracker.windowResized: A window was resized.
+--- * windowtracker.windowMinimized: A window was minimized.
+--- * windowtracker.windowUnminimized: A window was unminimized.
 
 local windowtracker = {}
 
@@ -7,13 +18,18 @@ local fnutils = require "hs.fnutils"
 local uielement = require "hs.uielement"
 local events = uielement.watcher
 
+windowtracker.windowCreated     = uielement.watcher.windowCreated
+windowtracker.windowDestroyed   = uielement.watcher.elementDestroyed
+windowtracker.mainWindowChanged = uielement.watcher.mainWindowChanged
+windowtracker.windowCreated     = uielement.watcher.windowCreated
+windowtracker.windowMoved       = uielement.watcher.windowMoved
+windowtracker.windowResized     = uielement.watcher.windowResized
+windowtracker.windowMinimized   = uielement.watcher.windowMinimized
+windowtracker.windowUnminimized = uielement.watcher.windowUnminimized
+
 --- windowtracker:new(events, handler) -> windowtracker
 --- Constructor
 --- Creates a new tracker for the given events.
----
---- Note that the events windowCreated and elementDestroyed are ALWAYS tracked. You should not specify
---- them in events, only the additional events you want to receive. See hs.uielement.watcher for a
---- list of events. You can only use window events.
 ---
 --- handler receives two arguments: the window object and the event name.
 function windowtracker:new(watchEvents, handler)
@@ -21,9 +37,18 @@ function windowtracker:new(watchEvents, handler)
     appsWatcher = nil,
     watchers = {},
     handler = handler,
-    winWatchEvents = watchEvents
+    watchEvents = watchEvents,
+    winWatchEvents = {}
   }
-  table.insert(obj.winWatchEvents, events.elementDestroyed)
+
+  -- Decide which events will be watched on new windows. Exclude events that are watched on the app.
+  local nonWindowEvents = {windowtracker.windowCreated, windowtracker.mainWindowChanged}
+  for i, event in pairs(watchEvents) do
+    if not fnutils.contains(nonWindowEvents, event) then table.insert(obj.winWatchEvents, event) end
+  end
+  if not fnutils.contains(obj.winWatchEvents, windowtracker.windowDestroyed) then
+    table.insert(obj.winWatchEvents, windowtracker.windowDestroyed)  -- always watch this event
+  end
 
   setmetatable(obj, self)
   self.__index = self
@@ -65,8 +90,12 @@ function windowtracker:_watchApp(app, starting)
   local watcher = app:newWatcher(function(...) self:_handleAppEvent(...) end)
   self.watchers[app:pid()] = {}
 
-  -- TODO we could handle focusedWindowChanged here, if the user wants it
-  watcher:start({events.windowCreated})
+  if fnutils.contains(self.watchEvents, windowtracker.mainWindowChanged) then
+    watcher:start(
+      {windowtracker.windowCreated, windowtracker.mainWindowChanged, windowtracker.applicationActivated})
+  else
+    watcher:start({windowtracker.windowCreated})
+  end
 
   -- Watch any windows that already exist
   for i, window in pairs(app:allWindows()) do
@@ -76,8 +105,13 @@ function windowtracker:_watchApp(app, starting)
 end
 
 function windowtracker:_handleAppEvent(element, event)
-  if event == events.windowCreated then
+  if     event == windowtracker.windowCreated then
     self:_watchWindow(element)  -- will call handler and ensure no duplicates
+  elseif event == windowtracker.mainWindowChanged and element:isWindow()
+         and element:application() == hs.application.frontmostApplication() then
+    self.handler(element, windowtracker.mainWindowChanged)
+  elseif event == windowtracker.applicationActivated then
+    self.handler(element:mainWindow(), windowtracker.mainWindowChanged)
   end
 end
 
@@ -92,18 +126,20 @@ function windowtracker:_watchWindow(win, starting)
     watcher:start(self.winWatchEvents)
 
     -- Track event
-    if not starting then
-      self.handler(win, events.windowCreated)
+    if not starting and fnutils.contains(self.watchEvents, windowtracker.windowCreated) then
+      self.handler(win, windowtracker.windowCreated)
     end
   end
 end
 
 function windowtracker:_handleWindowEvent(win, event, watcher)
   if win ~= watcher:element() then return end
-  if event == events.elementDestroyed then
+  if event == windowtracker.windowDestroyed then
     self.watchers[win:pid()][win:id()] = nil
   end
-  self.handler(watcher:element(), event)
+  if fnutils.contains(self.watchEvents, event) then
+    self.handler(watcher:element(), event)
+  end
 end
 
 return windowtracker

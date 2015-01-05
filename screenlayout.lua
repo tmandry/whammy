@@ -24,7 +24,9 @@ function screenlayout:new()
     table.insert(obj.screens, {screen = screen, layout = nil})
   end
 
-  obj.windowtracker = windowtracker:new({}, function(...) obj:_handleWindowEvent(...) end)
+  obj.windowtracker = windowtracker:new(
+    {windowtracker.windowCreated, windowtracker.windowDestroyed, windowtracker.mainWindowChanged},
+    function(...) obj:_handleWindowEvent(...) end)
   obj.windowtracker:start()
 
   obj.spacetracker = spacetracker:new(obj.layouts, function(...) obj:_handleSpaceChange(...) end)
@@ -67,11 +69,17 @@ function screenlayout:_handleSpaceChange(visibleLayouts)
 end
 
 function screenlayout:_handleWindowEvent(win, event)
-  if event == hs.uielement.watcher.windowCreated then
+  if     event == hs.uielement.watcher.windowCreated then
     self.selectedLayout:addWindow(win)
   elseif event == hs.uielement.watcher.elementDestroyed then
     local layout = self:_getLayoutForWindow(win)
     if layout then layout:removeWindowById(win:id()) end
+  elseif event == hs.uielement.watcher.mainWindowChanged then
+    local layout = self:_getLayoutForWindow(win)
+    if layout then
+      self.selectedLayout = layout
+      local result = layout:selectWindow(win)
+    end
   end
 end
 
@@ -119,9 +127,9 @@ end
 
 function screenlayout:_getLayoutForWindow(win)
   -- TODO add some bookkeeping to speed this up
-  for i, info in pairs(self.screens) do
-    if hs.fnutils.contains(info.layout:allWindows(), win) then
-      return info.layout
+  for i, layout in pairs(self.layouts) do
+    if hs.fnutils.contains(layout:allWindows(), win) then
+      return layout
     end
   end
 end
