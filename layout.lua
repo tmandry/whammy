@@ -43,8 +43,9 @@ function layout:_new()
     parent = nil,
     children = {},
     frame = nil,
-    screen = nil,  -- top level only
+
     window = nil,  -- bottom level only
+    fullscreen = false,
 
     orientation = layout.orientation.horizontal,
     selection = nil,
@@ -63,6 +64,7 @@ function layout:new(screen)
   local root = layout:_new()
   root.screen = screen
   root.selectedParent = nil  -- used to select parent nodes instead of bottom-level nodes
+  root.fullscreenNode = nil
   root.orientation = nil
   root.root = root
 
@@ -142,6 +144,21 @@ function layout:selectWindowGoingInDirection(direction)
 
   if self.selection then
     self.selection:selectWindowGoingInDirection(direction)
+  end
+end
+
+-- Toggles the fullscreen state of the selected node. If another node is fullscreen, the selected
+-- node will replace that node.
+function layout:toggleFullscreen()
+  local oldNode = self.root.fullscreenNode
+  if oldNode then
+    self.root.fullscreenNode = nil
+    oldNode:update()
+  end
+  local selection = self:_getSelectedNode()
+  if selection ~= oldNode then
+    self.root.fullscreenNode = selection
+    selection:update()
   end
 end
 
@@ -255,6 +272,10 @@ function layout:_addWindowToNode(win, idx)
     idx = selectedIdx + 1
   end
 
+  if self.root.fullscreenNode then
+    self.root.fullscreenNode = nil
+  end
+
   local child = layout:_newChild(self)
   child.window = win
   table.insert(self.children, idx, child)
@@ -345,6 +366,9 @@ end
 
 function layout:_remove()
   if self.parent == self.root then return end  -- don't delete the top-level node
+  if self.root.fullscreenNode == self then
+    self.root.fullscreenNode = nil
+  end
   _moveNode(self, nil, nil)
 end
 
@@ -364,7 +388,12 @@ end
 
 -- Recalculates the frames of this node and its descendants, moves windows into place.
 function layout:_update(frame)
-  self.frame = frame
+  if self.root.fullscreenNode == self then
+    -- Ignore frame, use screen frame
+    frame = self.root.screen:frame()
+  else
+    self.frame = frame
+  end
 
   if #self.children == 0 then
     -- Bottom-level node
@@ -391,7 +420,7 @@ end
 -- either be a sibling (if direction is in the same orientation as the parent) or a sibling of one
 -- of our ancestors (if not). If the top-level node is reached and there is no container in that
 -- direction, returns the top-level node with an index out-of-bounds on the side we're trying to go
--- to.
+-- to. Treats the fullscreen node like the top-level node.
 function layout:_moveInDirection(direction)
   if not self:_selection() then
     -- Bottom of tree, go up.
@@ -409,7 +438,7 @@ function layout:_moveInDirection(direction)
     return self, idx
   else
     -- Can't go this way; move up one level and try again.
-    if self.parent and self.parent ~= self.root then
+    if self.parent and self.parent ~= self.root and self ~= self.root.fullscreenNode then
       return self.parent:_moveInDirection(direction)
     else
       -- We're already at the top
@@ -432,7 +461,7 @@ function layout:focus(direction)
     self:focusSelection()
   else
     -- Trying to focus past the end of the top-level container; there is an event for this.
-    if self.root.onFocusPastEnd then
+    if node ~= self.root.fullscreenNode and self.root.onFocusPastEnd then
       self.root.onFocusPastEnd(self.root, direction)
     end
   end
@@ -453,8 +482,10 @@ function layout:move(direction)
 
     _moveNode(node, newParent, newIdx)
   elseif newAncestor then
-    -- idx is out of bounds; newAncestor is the top-level container
-    if orientationForDirection(direction) ~= newAncestor.orientation then
+    -- idx is out of bounds; newAncestor is the top-level or fullscreen container.
+    if newAncestor.parent ~= self.root then
+      -- Fullscreen container; do nothing.
+    elseif orientationForDirection(direction) ~= newAncestor.orientation then
       -- The user wants to move perpendicular to the direction of the top-level container.
       -- Create a new top-level container.
       local parent = layout:_newParent(newAncestor)
@@ -462,7 +493,7 @@ function layout:move(direction)
       _moveNode(node, parent, (incrementForDirection(direction) < 0) and 1 or 2)
     elseif node.parent == newAncestor then
       -- Trying to move something past the end of the top-level container; there is an event for this.
-      if self.root.onMovePastEnd then
+      if node ~= self.root.fullscreenNode and self.root.onMovePastEnd then
         self.root.onMovePastEnd(self.root, node, direction)
       end
     else
