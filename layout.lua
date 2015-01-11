@@ -43,6 +43,7 @@ function layout:_new()
     parent = nil,
     children = {},
     frame = nil,
+    size = 1.0,
 
     window = nil,  -- bottom level only
     fullscreen = false,
@@ -258,12 +259,15 @@ function layout:_split(win)
   local sibling = layout:_newChild(newParent)
   sibling.window = win
 
+  newParent.size = self.size
+  newParent.frame = self.frame
   newParent.children = {self, sibling}
   newParent.orientation = self.orientation
   newParent:_setSelection(sibling)
-  newParent:_update(self.frame)
 
+  self.size = 1.0
   self.splitNext = false
+  newParent:_onChildAdded(sibling, 2)
 end
 
 function layout:_addWindowToNode(win, idx)
@@ -279,7 +283,7 @@ function layout:_addWindowToNode(win, idx)
   local child = layout:_newChild(self)
   child.window = win
   table.insert(self.children, idx, child)
-  self:_update(self.frame)
+  self:_onChildAdded(child, idx)
   self:_setSelection(child)
 end
 
@@ -390,10 +394,21 @@ function layout:_onChildRemoved(oldChild, oldIdx)
     self:_restoreSelection(defaultSelection)
   end
 
+  -- Fix sizes
+  self:_rebalanceChildren(1, #self.children, 1.0, false)
+
   self:update()
 end
 
 function layout:_onChildAdded(newChild, newIdx)
+  -- Give the new child the size it would have been if it was previously a child and all children
+  -- were equally sized. After calling _rebalanceChildren it will have the size equal to
+  -- 1/numChildren, and all windows will have shrunk proportionally to accommodate it.
+  if #self.children > 1 then
+    newChild.size = 1.0 / (#self.children-1)
+  end
+  self:_rebalanceChildren(1, #self.children, 1.0, false)
+
   self:update()
 end
 
@@ -438,10 +453,10 @@ function layout:_update(frame)
     for idx, child in pairs(self.children) do
       local childFrame
       if self.orientation == layout.orientation.horizontal then
-        childFrame = {x=cursor, y=frame.y, w=frame.w/#self.children, h=frame.h}
+        childFrame = {x=cursor, y=frame.y, w=frame.w*child.size, h=frame.h}
         cursor = cursor + childFrame.w
       else
-        childFrame = {x=frame.x, y=cursor, w=frame.w, h=frame.h/#self.children}
+        childFrame = {x=frame.x, y=cursor, w=frame.w, h=frame.h*child.size}
         cursor = cursor + childFrame.h
       end
       child:_update(childFrame)
@@ -537,6 +552,64 @@ function layout:move(direction)
     end
   end
   node:_select()
+end
+
+-- Gets the lowest-level ancestor that has the orientation. Returns that and the index of the
+-- ancestor right below it.
+function layout:_findAncestorWithOrientation(orientation)
+  if     self.parent == self.root then
+    return nil
+  elseif self.parent.orientation == orientation then
+    local idx = fnutils.indexOf(self.parent.children, self)
+    return self.parent, idx
+  else
+    return self.parent:_findAncestorWithOrientation(orientation)
+  end
+end
+
+function layout:resize(direction, pct)
+  local function isIndexOnEnd(increment, idx, parent)
+    return (increment < 0 and idx == 1) or (increment > 0 and idx == #parent.children)
+  end
+
+  local orientation = orientationForDirection(direction)
+  local increment = incrementForDirection(direction)
+  local screenFrame = self.root.screen:frame()
+
+  -- Find the ancestor of the current selection that has the given orientation.
+  -- We will resize its child (also an ancestor) by the given amount.
+  -- Keep going up if we are at the end of the container.
+  local parent = self:_getSelectedNode(), idx
+  repeat
+    parent, idx = parent:_findAncestorWithOrientation(orientation)
+    if parent == nil then return end  -- no such ancestor exists
+  until not isIndexOnEnd(increment, idx, parent)
+  local child = parent.children[idx]
+
+  -- Child will get all of pct; all siblings in the direction of the resize will share the cut.
+  child.size = child.size + pct
+  if increment > 0 then
+    parent:_rebalanceChildren(idx+1, #parent.children, -pct, true)
+  else
+    parent:_rebalanceChildren(1, idx-1, -pct, true)
+  end
+
+  parent:update()
+end
+
+-- Proportionally rebalance the sizes of all children between startIdx and endIdx inclusive to fit
+-- in the given size. If relative is true, grow/shrink the current size by size.
+function layout:_rebalanceChildren(startIdx, endIdx, size, relative)
+  local curSize = 0
+  for i = startIdx, endIdx do
+    curSize = curSize + self.children[i].size
+  end
+
+  local newSize = relative and (curSize + size) or size
+  for i = startIdx, endIdx do
+    local pct = self.children[i].size / curSize
+    self.children[i].size = newSize * pct
+  end
 end
 
 -- Use this method to get the selection of a node, unless you are deciding where to place a new window inside this node.
