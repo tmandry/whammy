@@ -141,6 +141,10 @@ end
 
 -- Selects a window, coming into this layout from the given direction.
 function layout:selectWindowGoingInDirection(direction)
+  if self.root.fullscreenNode then
+    -- Keep fullscreen node selected
+    return
+  end
   self.root.selectParent = nil
 
   if orientationForDirection(direction) == self.orientation then
@@ -529,7 +533,7 @@ end
 function layout:_moveInDirection(direction)
   if not self:_selection() then
     -- Bottom of tree, go up.
-    if self.parent and self.parent ~= self.root then
+    if self.parent and self.parent ~= self.root and self ~= self.root.fullscreenNode then
       return self.parent:_moveInDirection(direction)
     end
     return nil
@@ -567,7 +571,7 @@ function layout:focus(direction)
     self:focusSelection()
   else
     -- Trying to focus past the end of the top-level container; there is an event for this.
-    if node ~= self.root.fullscreenNode and self.root.onFocusPastEnd then
+    if self.root.onFocusPastEnd then
       self.root.onFocusPastEnd(self.root, direction)
     end
   end
