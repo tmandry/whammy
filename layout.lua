@@ -58,8 +58,7 @@ function layout:_new()
 
     orientation = orientation.horizontal,
     selection = nil,
-    previousSelection = nil,
-    splitNext = false
+    previousSelection = nil
   }
 
   setmetatable(obj, self)
@@ -103,6 +102,7 @@ function layout:_newParent(child)
   parent.children = {child}
   parent.selection = child
   parent.frame = child.frame
+  parent.size = child.size
 
   local grandparent = parent.parent or parent.root
   local idx = fnutils.indexOf(grandparent.children, child)
@@ -111,6 +111,7 @@ function layout:_newParent(child)
   if grandparent.selection == child then grandparent.selection = parent end
 
   child.parent = parent
+  child.size = 1.0
 
   return parent
 end
@@ -181,30 +182,18 @@ function layout:_addWindow(win, idx)
     -- Descend down selection path
     self:_selection():_addWindow(win, idx)
   else
-    -- If split flag is true, we split this cell. Otherwise, we add the window to the parent.
-    if self.splitNext then
-      self:_split(win)
+    if self.parent ~= self.root then
+      self.parent:_addWindowToNode(win, idx)
     else
-      if self.parent ~= self.root then
-        self.parent:_addWindowToNode(win, idx)
-      else
-        -- top-level
-        self:_addWindowToNode(win, idx)
-      end
+      -- top-level
+      self:_addWindowToNode(win, idx)
     end
-
   end
   self:focusSelection()
 end
 
 function layout:splitCurrent(orientation)
-  local selection = self:_getSelectedNode()
-  selection.orientation = orientation
-  if #selection.children > 0 then
-    selection:_update(selection.frame)
-  else
-    selection.splitNext = true
-  end
+  self:_getSelectedNode():_split(orientation)
 end
 
 function layout:selectParent()
@@ -303,25 +292,15 @@ local function findIdx(t, f)
   return nil
 end
 
-function layout:_split(win)
-  local newParent = layout:_newChild(self.parent)
-  local parentIdx = fnutils.indexOf(self.parent.children, self)
-  self.parent.children[parentIdx] = newParent
-  self.parent:_setSelection(newParent)
-  self.parent = newParent
-
-  local sibling = layout:_newChild(newParent)
-  sibling.window = win
-
-  newParent.size = self.size
-  newParent.frame = self.frame
-  newParent.children = {self, sibling}
-  newParent.orientation = self.orientation
-  newParent:_setSelection(sibling)
-
-  self.size = 1.0
-  self.splitNext = false
-  newParent:_onChildAdded(sibling, 2)
+-- Creates a single-child parent of this node with the given orientation. If a single-child parent
+-- already exists, sets its orientation.
+function layout:_split(orientation)
+  if #self.parent.children == 1 then
+    self.parent.orientation = orientation
+  else
+    local newParent = layout:_newParent(self)
+    newParent.orientation = orientation
+  end
 end
 
 function layout:_addWindowToNode(win, idx)
