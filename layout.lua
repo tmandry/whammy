@@ -284,7 +284,6 @@ function layout:_addWindowToNode(win, idx)
 end
 
 function layout:removeWindowById(id)
-  self.root.selectedParent = nil
   local result = self:_removeWindowById(id)
   self:focusSelection()
   return result
@@ -343,24 +342,16 @@ local function _moveNode(node, newParent, newIdx)
   if newParent == oldParent and newIdx < oldIdx then oldIdx = oldIdx + 1 end  -- used for selection
   node.parent = newParent
 
-  -- Fix selection
-  if oldParent ~= newParent and oldParent.selection == node then
-    local defaultSelection = oldParent.children[math.min(oldIdx, #oldParent.children)]
-    oldParent:_restoreSelection(defaultSelection)
-  end
-
-  -- Update state
-  if newParent then
-    newParent:update()
-  end
-  if oldParent.parent and #oldParent.children == 0 then
-    oldParent:_remove()
-  elseif oldParent.parent ~= node.root and #oldParent.children == 1 and #oldParent.children[1].children > 0 then
-    -- Node now contains just a single container, so it can be culled.
-    -- This has no effect on window position.
-    oldParent:_removeLink()
-  elseif oldParent ~= newParent then
-    oldParent:update()
+  -- Call event callbacks
+  if oldParent ~= newParent then
+    oldParent:_onChildRemoved(node, oldIdx)
+    if newParent then
+      newParent:_onChildAdded(node, newIdx)
+    else
+      node.root:_onNodeRemovedFromLayout(node)
+    end
+  else
+    oldParent:_onChildrenRearranged()
   end
 end
 
@@ -376,6 +367,48 @@ function layout:_removeLink()
   if self.parent == self.root then return end  -- don't delete the top-level node
   _moveNode(self.children[1], self.parent, fnutils.indexOf(self.parent.children, self))
   -- _moveNode calls _remove automatically
+end
+
+function layout:_onChildRemoved(oldChild, oldIdx)
+  if self.parent ~= self.root then
+    -- Cull self if no children
+    if #self.children == 0 then
+      self:_remove()
+      return
+    end
+
+    -- Cull self if only has one child container. This has no effect on window position.
+    if #self.children == 1 and #self.children[1].children > 0 then
+      self:_removeLink()
+      return
+    end
+  end
+
+  -- Fix selection
+  if self.selection == oldChild then
+    local defaultSelection = self.children[math.min(oldIdx, #self.children)]
+    self:_restoreSelection(defaultSelection)
+  end
+
+  self:update()
+end
+
+function layout:_onChildAdded(newChild, newIdx)
+  self:update()
+end
+
+function layout:_onChildrenRearranged()
+  self:update()
+end
+
+function layout:_onNodeRemovedFromLayout(oldNode)
+  -- Called on root
+  if self.selectParent == oldNode then
+    self.selectParent = nil
+  end
+  if self.fullscreenNode == oldNode then
+    self.fullscreenNode = nil
+  end
 end
 
 function layout:update()
@@ -453,6 +486,7 @@ function layout:_moveInDirection(direction)
   end
 end
 
+-- Selects the window in the specified direction of the current selection.
 function layout:focus(direction)
   self.root.selectedParent = nil
   local node, idx = self:_getSelectedNode():_moveInDirection(direction)
@@ -467,6 +501,7 @@ function layout:focus(direction)
   end
 end
 
+-- Moves the selection in the specified direction.
 function layout:move(direction)
   local node = self:_getSelectedNode()
   local newAncestor, idx = node:_moveInDirection(direction)
@@ -558,12 +593,7 @@ function layout:_restoreSelection(default)
   end
 end
 
-function layout:_containsPoint(point)
-  return point.x >= rect.x and point.x < (rect.x+rect.w) and point.y >= rect.y and point.y < (rect.y+rect.h)
-end
-
 function layout:__tostring()
-  -- return '[x='..self.frame.x..',y='..self.frame.y..',w='..self.frame.w..',h='..self.frame.h..']'
   if self.window then
     return '<'..self.window:title()..'>'
   else
