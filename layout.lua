@@ -21,6 +21,10 @@ layout.direction = {
   left = 0, right = 1, up = 2, down = 3
 }
 
+layout.mode = {
+  default = 0, stacked = 1, tabbed = 2
+}
+
 local function orientationForDirection(d)
   if d == layout.direction.left or d == layout.direction.right then
     return layout.orientation.horizontal
@@ -44,6 +48,7 @@ function layout:_new()
     children = {},
     frame = nil,
     size = 1.0,
+    mode = layout.mode.default,
 
     window = nil,  -- bottom level only
     fullscreen = false,
@@ -224,6 +229,33 @@ function layout:closeSelected()
   fnutils.each(windows, function(win) win:close() end)
 end
 
+function layout:setMode(mode)
+  self:_getSelectedNode().parent:_setMode(mode)
+end
+
+function layout:_setMode(mode)
+  if self.mode == mode then return end
+
+  if mode == layout.mode.default then
+    if self.oldOrientation then
+      self.orientation = self.oldOrientation
+    end
+  else
+    if self.mode == layout.mode.default then
+      self.oldOrientation = self.orientation
+    end
+
+    if     mode == layout.mode.stacked then
+      self.orientation = layout.orientation.vertical
+    elseif mode == layout.mode.tabbed then
+      self.orientation = layout.orientation.horizontal
+    end
+  end
+
+  self.mode = mode
+  self:update()
+end
+
 function layout:isEmpty()
   -- called on root
   return #self.children[1].children == 0
@@ -233,11 +265,26 @@ function layout:allWindows()
   if self.window then
     return {self.window}
   end
+
   local windows = {}
   for i, c in pairs(self.children) do
-    for j, w in pairs(c:allWindows()) do
-      table.insert(windows, w)
+    fnutils.concat(windows, c:allWindows())
+  end
+  return windows
+end
+
+function layout:allVisibleWindows()
+  if self.window then
+    return {self.window}
+  end
+
+  local windows = {}
+  if self.mode == layout.mode.default then
+    for i, c in pairs(self.children) do
+      fnutils.concat(windows, c:allVisibleWindows())
     end
+  else
+    windows = self.selection:allVisibleWindows()
   end
   return windows
 end
@@ -449,17 +496,24 @@ function layout:_update(frame)
       self.window:setFrame(frame, 0)
     end
   else
-    local cursor = (self.orientation == layout.orientation.horizontal) and frame.x or frame.y
-    for idx, child in pairs(self.children) do
-      local childFrame
-      if self.orientation == layout.orientation.horizontal then
-        childFrame = {x=cursor, y=frame.y, w=frame.w*child.size, h=frame.h}
-        cursor = cursor + childFrame.w
-      else
-        childFrame = {x=frame.x, y=cursor, w=frame.w, h=frame.h*child.size}
-        cursor = cursor + childFrame.h
+    if self.mode == layout.mode.stacked or self.mode == layout.mode.tabbed then
+      -- Children of stacked nodes share the same frame.
+      for idx, child in pairs(self.children) do
+        child:_update(frame)
       end
-      child:_update(childFrame)
+    else
+      local cursor = (self.orientation == layout.orientation.horizontal) and frame.x or frame.y
+      for idx, child in pairs(self.children) do
+        local childFrame
+        if self.orientation == layout.orientation.horizontal then
+          childFrame = {x=cursor, y=frame.y, w=frame.w*child.size, h=frame.h}
+          cursor = cursor + childFrame.w
+        else
+          childFrame = {x=frame.x, y=cursor, w=frame.w, h=frame.h*child.size}
+          cursor = cursor + childFrame.h
+        end
+        child:_update(childFrame)
+      end
     end
   end
 end
@@ -651,6 +705,19 @@ function layout:_setSelection(selection)
       self.previousSelection = self.selection
     end
     self.selection = selection
+
+    selection:_onSelected()
+  end
+end
+
+-- Called when a node is newly selected by its parent (not necessarily the global selection).
+function layout:_onSelected()
+  if self.parent.mode == layout.mode.stacked or self.parent.mode == layout.mode.tabbed then
+    -- Bring all windows to front.
+    local windows = self:allVisibleWindows()
+    for i, win in pairs(windows) do
+      win:focus()
+    end
   end
 end
 
@@ -670,7 +737,17 @@ function layout:__tostring()
   if self.window then
     return '<'..self.window:title()..'>'
   else
-    str = '['..((self.orientation == layout.orientation.horizontal) and 'H' or 'V')
+    str = '['
+    if     self.root == self then
+      str = str..'R'
+    elseif self.mode == layout.mode.default then
+      str = str..((self.orientation == layout.orientation.horizontal) and 'H' or 'V')
+    elseif self.mode == layout.mode.stacked then
+      str = str..'S'
+    elseif self.mode == layout.mode.tabbed then
+      str = str..'T'
+    end
+
     for i, c in pairs(self.children) do
       str = str..' '
       if c == self.selection then str = str..'*' end
