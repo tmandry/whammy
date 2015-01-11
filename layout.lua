@@ -12,29 +12,32 @@ local fnutils = require "hs.fnutils"
 
 local layout = {}
 
-layout.orientation = {
+local orientation = {
   horizontal = 0,
   vertical = 1
 }
+layout.orientation = orientation
 
-layout.direction = {
+local direction = {
   left = 0, right = 1, up = 2, down = 3
 }
+layout.direction = direction
 
-layout.mode = {
+local mode = {
   default = 0, stacked = 1, tabbed = 2
 }
+layout.mode = mode
 
 local function orientationForDirection(d)
-  if d == layout.direction.left or d == layout.direction.right then
-    return layout.orientation.horizontal
+  if d == direction.left or d == direction.right then
+    return orientation.horizontal
   else
-    return layout.orientation.vertical
+    return orientation.vertical
   end
 end
 
 local function incrementForDirection(d)
-  if d == layout.direction.left or d == layout.direction.up then
+  if d == direction.left or d == direction.up then
     return -1
   else
     return  1
@@ -48,12 +51,12 @@ function layout:_new()
     children = {},
     frame = nil,
     size = 1.0,
-    mode = layout.mode.default,
+    mode = mode.default,
 
     window = nil,  -- bottom level only
     fullscreen = false,
 
-    orientation = layout.orientation.horizontal,
+    orientation = orientation.horizontal,
     selection = nil,
     previousSelection = nil,
     splitNext = false
@@ -233,26 +236,26 @@ function layout:setMode(mode)
   self:_getSelectedNode().parent:_setMode(mode)
 end
 
-function layout:_setMode(mode)
-  if self.mode == mode then return end
+function layout:_setMode(newMode)
+  if self.mode == newMode then return end
 
-  if mode == layout.mode.default then
+  if newMode == mode.default then
     if self.oldOrientation then
       self.orientation = self.oldOrientation
     end
   else
-    if self.mode == layout.mode.default then
+    if self.mode == mode.default then
       self.oldOrientation = self.orientation
     end
 
-    if     mode == layout.mode.stacked then
-      self.orientation = layout.orientation.vertical
-    elseif mode == layout.mode.tabbed then
-      self.orientation = layout.orientation.horizontal
+    if     mode == mode.stacked then
+      self.orientation = orientation.vertical
+    elseif mode == mode.tabbed then
+      self.orientation = orientation.horizontal
     end
   end
 
-  self.mode = mode
+  self.mode = newMode
   self:update()
 end
 
@@ -279,7 +282,7 @@ function layout:allVisibleWindows()
   end
 
   local windows = {}
-  if self.mode == layout.mode.default then
+  if self.mode == mode.default then
     for i, c in pairs(self.children) do
       fnutils.concat(windows, c:allVisibleWindows())
     end
@@ -496,16 +499,16 @@ function layout:_update(frame)
       self.window:setFrame(frame, 0)
     end
   else
-    if self.mode == layout.mode.stacked or self.mode == layout.mode.tabbed then
+    if self.mode == mode.stacked or self.mode == mode.tabbed then
       -- Children of stacked nodes share the same frame.
       for idx, child in pairs(self.children) do
         child:_update(frame)
       end
     else
-      local cursor = (self.orientation == layout.orientation.horizontal) and frame.x or frame.y
+      local cursor = (self.orientation == orientation.horizontal) and frame.x or frame.y
       for idx, child in pairs(self.children) do
         local childFrame
-        if self.orientation == layout.orientation.horizontal then
+        if self.orientation == orientation.horizontal then
           childFrame = {x=cursor, y=frame.y, w=frame.w*child.size, h=frame.h}
           cursor = cursor + childFrame.w
         else
@@ -712,7 +715,7 @@ end
 
 -- Called when a node is newly selected by its parent (not necessarily the global selection).
 function layout:_onSelected()
-  if self.parent.mode == layout.mode.stacked or self.parent.mode == layout.mode.tabbed then
+  if self.parent.mode == mode.stacked or self.parent.mode == mode.tabbed then
     -- Bring all windows to front.
     local windows = self:allVisibleWindows()
     for i, win in pairs(windows) do
@@ -740,11 +743,11 @@ function layout:__tostring()
     str = '['
     if     self.root == self then
       str = str..'R'
-    elseif self.mode == layout.mode.default then
-      str = str..((self.orientation == layout.orientation.horizontal) and 'H' or 'V')
-    elseif self.mode == layout.mode.stacked then
+    elseif self.mode == mode.default then
+      str = str..((self.orientation == orientation.horizontal) and 'H' or 'V')
+    elseif self.mode == mode.stacked then
       str = str..'S'
-    elseif self.mode == layout.mode.tabbed then
+    elseif self.mode == mode.tabbed then
       str = str..'T'
     end
 
