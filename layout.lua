@@ -126,10 +126,10 @@ function layout:addWindow(win)
   self.children[1]:_addWindow(win, nil)
 end
 
--- Adds a window to this layout that is moving in the given direction.
--- For example, if the window is moving to the right (from somewhere on the left), pass right as the
--- direction and the window will be added to the left side of the layout.
-function layout:addWindowGoingInDirection(win, direction)
+-- Adds a node to this layout that is moving in the given direction.
+-- For example, if the node is moving to the right (from somewhere on the left), pass right as the
+-- direction and the node will be added to the left side of the layout.
+function layout:addNodeGoingInDirection(node, direction)
   local topLevel = self.children[1]
   local idx
   if incrementForDirection(direction) > 0 then
@@ -137,7 +137,8 @@ function layout:addWindowGoingInDirection(win, direction)
   else
     idx = #topLevel.children + 1
   end
-  self:_addWindow(win, idx)
+  node:_foreachNode(function(node) node.root = self.root end)
+  topLevel:_addNode(node, idx)
 end
 
 -- Selects a window, coming into this layout from the given direction.
@@ -174,22 +175,6 @@ function layout:toggleFullscreen()
     self.root.fullscreenNode = selection
     selection:update()
   end
-end
-
--- idx is optional. If nil, the window is added after the selection.
-function layout:_addWindow(win, idx)
-  if self:_selection() then
-    -- Descend down selection path
-    self:_selection():_addWindow(win, idx)
-  else
-    if self.parent ~= self.root then
-      self.parent:_addWindowToNode(win, idx)
-    else
-      -- top-level
-      self:_addWindowToNode(win, idx)
-    end
-  end
-  self:focusSelection()
 end
 
 function layout:splitCurrent(orientation)
@@ -285,6 +270,13 @@ function layout:allVisibleWindows()
   return windows
 end
 
+function layout:_foreachNode(f)
+  f(self)
+  for i, child in pairs(self.children) do
+    child:_foreachNode(f)
+  end
+end
+
 local function findIdx(t, f)
   for k, v in pairs(t) do
     if f(v) then return k end
@@ -303,21 +295,38 @@ function layout:_split(orientation)
   end
 end
 
-function layout:_addWindowToNode(win, idx)
-  if not idx then
-    local selectedIdx = fnutils.indexOf(self.children, self.selection) or #self.children
-    idx = selectedIdx + 1
+function layout:_addWindow(win)
+  if self:_selection() then
+    -- Descend down selection path
+    self:_selection():_addWindow(win)
+  else
+    if self.parent ~= self.root then
+      self.parent:_addWindowToNode(win)
+    else
+      -- top-level
+      self:_addWindowToNode(win)
+    end
   end
+  self:focusSelection()
+end
 
+function layout:_addWindowToNode(win)
+  local child = layout:_newChild(self)
+  child.window = win
+  local selectedIdx = fnutils.indexOf(self.children, self.selection) or #self.children
+  self:_addNode(child, selectedIdx + 1)
+end
+
+-- Adds the given node as a child at the given index.
+function layout:_addNode(node, idx)
   if self.root.fullscreenNode then
     self.root.fullscreenNode = nil
   end
 
-  local child = layout:_newChild(self)
-  child.window = win
-  table.insert(self.children, idx, child)
-  self:_onChildAdded(child, idx)
-  self:_setSelection(child)
+  table.insert(self.children, idx, node)
+  node.parent = self
+  self:_onChildAdded(node, idx)
+  self:_setSelection(node)
 end
 
 function layout:removeWindowById(id)
@@ -338,6 +347,14 @@ function layout:_removeWindowById(id)
     end
   end
   return false
+end
+
+function layout:removeFromParent()
+  if self.parent == self.root then
+    -- Top-level node must be replaced
+    layout:_newParent(self)
+  end
+  self:_remove()
 end
 
 function layout:focusSelection()

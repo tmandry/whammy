@@ -98,9 +98,11 @@ function screenlayout:_onMovePastEnd(layout, node, direction)
   local curIdx = self:_getLayoutIndex(layout)
   local newIdx = self:_getScreenInDirection(curIdx, direction)
 
-  self.screens[curIdx].layout:removeWindowById(node.window:id())
-  self.screens[newIdx].layout:addWindowGoingInDirection(node.window, direction)
-  self.selectedLayout = self.screens[newIdx].layout
+  node:removeFromParent()
+  self.screens[newIdx].layout:addNodeGoingInDirection(node, direction)
+
+  -- Keep current screen selected
+  self.screens[curIdx].layout:focusSelection()
 end
 
 function screenlayout:_getScreenInDirection(curIdx, direction)
