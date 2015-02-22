@@ -14,8 +14,8 @@
 
 local windowtracker = {}
 
-local fnutils = require "hs.fnutils"
-local uielement = require "hs.uielement"
+local fnutils = require('hs.fnutils')
+local uielement = require('hs.uielement')
 local events = uielement.watcher
 
 windowtracker.windowCreated     = uielement.watcher.windowCreated

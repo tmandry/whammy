@@ -8,20 +8,15 @@
 -- layout is a recursive data structure. The root node (created with :new()) has one child which is
 -- the actual top level of the layout tree. This top level node can change.
 
-local fnutils = require "hs.fnutils"
+local fnutils = require 'hs.fnutils'
+local utils = require 'wm.utils'
 
 local layout = {}
 
-local orientation = {
-  horizontal = 0,
-  vertical = 1
-}
-layout.orientation = orientation
-
-local direction = {
-  left = 0, right = 1, up = 2, down = 3
-}
-layout.direction = direction
+local direction   = utils.direction
+local orientation = utils.orientation
+local incrementForDirection   = utils.incrementForDirection
+local orientationForDirection = utils.orientationForDirection
 
 local mode = {
   default = 0, stacked = 1, tabbed = 2
@@ -61,8 +56,7 @@ function layout:_new()
     previousSelection = nil
   }
 
-  setmetatable(obj, self)
-  self.__index = self
+  setmetatable(obj, {__index = self, __tostring = layout.__tostring})
   return obj
 end
 
@@ -270,6 +264,12 @@ function layout:allVisibleWindows()
   return windows
 end
 
+function layout:removeSelectedWindows()
+  local selection = self:_getSelectedNode()
+  selection:removeFromParent()
+  return selection:allWindows()
+end
+
 function layout:_foreachNode(f)
   f(self)
   for i, child in pairs(self.children) do
@@ -359,7 +359,11 @@ end
 
 function layout:focusSelection()
   local sel = self:_getSelectedNode()
-  if sel.window then sel.window:focus() end
+  if sel.window then
+    sel.window:focus()
+    return true
+  end
+  return false
 end
 
 function layout:selectWindow(win)

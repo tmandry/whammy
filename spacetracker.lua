@@ -1,26 +1,24 @@
--- spacetracker watches for space changes and reports the layouts that are currently visible when a
+-- spacetracker watches for space changes and reports the workspaces that are currently visible when a
 -- change occurs.
 
-local layout = require('wm.layout')
+local layout = require 'wm.layout'
 
 local spacetracker = {}
 
 -- Creates a new space tracker.
 --
--- layouts is a table of all layouts, which you may change.
+-- workspaces is a table of all workspaces, which you may change.
 --
--- onSpaceChange is a function that will be called with the list of currently visible layouts for
--- each screen. Note that some entries may be nil, if no layouts were detected on that screen. The
+-- onSpaceChange is a function that will be called with the list of currently visible workspaces for
+-- each screen. Note that some entries may be nil, if no workspaces were detected on that screen. The
 -- table passed to onSpaceChange will have a .length index that contains the actual length of the
 -- list; you should use this instead of the # operator or the pairs() function for iterating.
-function spacetracker:new(layouts, onSpaceChange)
+function spacetracker:new(workspaces, onSpaceChange)
   local obj = {
-    layouts = layouts,
+    workspaces = workspaces,
     onSpaceChange = onSpaceChange
   }
-
-  setmetatable(obj, self)
-  self.__index = self
+  setmetatable(obj, {__index = self})
 
   obj.watcher = hs.spaces.watcher.new(function() spacetracker._handleSpaceChange(obj) end)
   obj.watcher:start()
@@ -28,7 +26,7 @@ function spacetracker:new(layouts, onSpaceChange)
   return obj
 end
 
-local function allWindows()
+local function allVisibleWindows()
   return hs.window.allWindows()
 end
 
@@ -40,21 +38,21 @@ local function times(x, num)
   return list
 end
 
--- Returns the layout index of the current layout for each screen, or nil if none could be matched.
-function spacetracker:_detectLayouts()
+-- Returns the workspace index of the current workspace for each screen, or nil if none could be matched.
+function spacetracker:_detectWorkspaces()
   -- Detect which space we're in by looking at the windows currently on screen.
 
   local screens = hs.screen.allScreens()
 
-  -- Get list of windows for each layout.
-  local layoutInfo = {}
-  for i, layout in pairs(self.layouts) do
-    layoutInfo[i] = {windows = layout:allWindows(), matches = times(0, #screens)}
+  -- Get list of windows for each workspace.
+  local workspaceInfo = {}
+  for i, workspace in pairs(self.workspaces) do
+    workspaceInfo[i] = {windows = workspace:allWindows(), matches = times(0, #screens)}
   end
 
-  -- Match each window to a layout if possible.
-  for i, win in pairs(allWindows()) do
-    for j, info in pairs(layoutInfo) do
+  -- Match each window to a workspace if possible.
+  for i, win in pairs(allVisibleWindows()) do
+    for j, info in pairs(workspaceInfo) do
       if hs.fnutils.contains(info.windows, win) then
         local screenIdx = hs.fnutils.indexOf(screens, win:screen())
         info.matches[screenIdx] = info.matches[screenIdx] + 1
@@ -63,12 +61,12 @@ function spacetracker:_detectLayouts()
     end
   end
 
-  -- Pick the best match for each screen. Must see more than half of windows in the layout to be a match.
+  -- Pick the best match for each screen. Must see more than half of windows in the workspace to be a match.
   local bestMatches = {length = #screens}
-  for i, info in pairs(layoutInfo) do
+  for i, info in pairs(workspaceInfo) do
     for j, matches in pairs(info.matches) do
       if matches > #info.windows/2 then
-        if not bestMatches[j] or matches > layoutInfo[bestMatches[j]].matches[j] then
+        if not bestMatches[j] or matches > workspaceInfo[bestMatches[j]].matches[j] then
           bestMatches[j] = i
         end
       end
@@ -79,14 +77,14 @@ function spacetracker:_detectLayouts()
 end
 
 function spacetracker:_handleSpaceChange()
-  local layoutIdxs = self:_detectLayouts()
-  local layouts = {length = layoutIdxs.length}
-  for i = 1, layoutIdxs.length do
-    local idx = layoutIdxs[i]
-    layouts[i] = idx and self.layouts[idx] or nil
+  local workspaceIdxs = self:_detectWorkspaces()
+  local workspaces = {length = workspaceIdxs.length}
+  for i = 1, workspaceIdxs.length do
+    local idx = workspaceIdxs[i]
+    workspaces[i] = idx and self.workspaces[idx] or nil
   end
 
-  self.onSpaceChange(layouts)
+  self.onSpaceChange(workspaces)
 end
 
 return spacetracker
