@@ -92,7 +92,7 @@ function windowtracker:_watchApp(app, starting)
 
   if fnutils.contains(self.watchEvents, windowtracker.mainWindowChanged) then
     watcher:start(
-      {windowtracker.windowCreated, windowtracker.mainWindowChanged, windowtracker.applicationActivated})
+      {windowtracker.windowCreated, windowtracker.mainWindowChanged, uielement.watcher.applicationActivated})
   else
     watcher:start({windowtracker.windowCreated})
   end
@@ -110,7 +110,8 @@ function windowtracker:_handleAppEvent(element, event)
   elseif event == windowtracker.mainWindowChanged and element:isWindow()
          and element:application() == hs.application.frontmostApplication() then
     self.handler(element, windowtracker.mainWindowChanged)
-  elseif event == windowtracker.applicationActivated then
+  elseif event == uielement.watcher.applicationActivated then
+    -- Generate a mainWindowChanged event since the application changed.
     self.handler(element:mainWindow(), windowtracker.mainWindowChanged)
   end
 end
