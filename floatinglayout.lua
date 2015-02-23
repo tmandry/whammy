@@ -45,6 +45,19 @@ function floatinglayout:focusSelection()
   return false
 end
 
+function floatinglayout:bringToFrontAndFocusSelection()
+  -- Focus selection first (for user visual identification)
+  if self.selection then self.selection:focus() end
+  -- Focus other windows
+  hs.fnutils.each(self.windows, function(win)
+    if win ~= self.selection then
+      win:focus()
+    end
+  end)
+  -- Focus selection last (for final focus)
+  if self.selection then self.selection:focus() end
+end
+
 function floatinglayout:removeSelectedWindows()
   local win = self.selection
   local idx = hs.fnutils.indexOf(self.windows, win)

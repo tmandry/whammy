@@ -270,6 +270,23 @@ function layout:removeSelectedWindows()
   return selection:allWindows()
 end
 
+-- Called on root node to bring all visible windows of the layout to the front.
+function layout:bringToFrontAndFocusSelection()
+  local selection = self:_getSelectedNode(true)
+  local windows = self:allVisibleWindows()
+
+  -- Focus selection first (for user visual identification)
+  if selection.window then selection.window:focus() end
+  -- Focus other windows
+  fnutils.each(windows, function(win)
+    if win ~= selection.window then
+      win:focus()
+    end
+  end)
+  -- Focus selection last (for final focus)
+  if selection.window then selection.window:focus() end
+end
+
 function layout:_foreachNode(f)
   f(self)
   for i, child in pairs(self.children) do
@@ -672,7 +689,8 @@ function layout:_rebalanceChildren(startIdx, endIdx, size, relative)
   end
 end
 
--- Use this method to get the selection of a node, unless you are deciding where to place a new window inside this node.
+-- Use this method to get the selection of a node, unless you are deciding where to place a
+-- new window inside this node.
 function layout:_selection()
   if self.root.selectedParent == self then
     return nil  -- terminate selection path early
@@ -681,11 +699,11 @@ function layout:_selection()
   end
 end
 
--- Gets the bottom-level node that is selected from this node. Takes selectedParent into consideration, if it is a
--- child node.
-function layout:_getSelectedNode()
+-- Gets the bottom-level node that is selected from this node. Takes selectedParent into
+-- consideration, if it is a child node.
+function layout:_getSelectedNode(ignoreSelectedParent)
   local node = self
-  while node.selection and node.root.selectedParent ~= node do
+  while node.selection and (ignoreSelectedParent or node.root.selectedParent ~= node) do
     node = node.selection
   end
   return node

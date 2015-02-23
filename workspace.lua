@@ -58,12 +58,13 @@ function workspace:toggleFloating()
   end
 
   self.selection = dstLayout
+  self.selection:bringToFrontAndFocusSelection()
 end
 
 -- Toggle whether the tiling or floating layout is selected.
 function workspace:toggleFocusMode()
   self.selection = (self.selection == self.tilingLayout) and self.floatingLayout or self.tilingLayout
-  self.selection:focusSelection()
+  self.selection:bringToFrontAndFocusSelection()
 end
 
 function workspace:_onFocusPastEnd(floating, layout, direction)
