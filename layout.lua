@@ -564,7 +564,6 @@ end
 
 -- Selects the window in the specified direction of the current selection.
 function layout:focus(direction)
-  self.root.selectedParent = nil
   local node, idx = self:_getSelectedNode():_moveInDirection(direction)
   if node and node.children[idx] then
     node:_setSelection(node.children[idx])
