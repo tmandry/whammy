@@ -220,9 +220,9 @@ function layout:_setMode(newMode)
       self.oldOrientation = self.orientation
     end
 
-    if     mode == mode.stacked then
+    if     newMode == mode.stacked then
       self.orientation = orientation.vertical
-    elseif mode == mode.tabbed then
+    elseif newMode == mode.tabbed then
       self.orientation = orientation.horizontal
     end
   end
