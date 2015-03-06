@@ -67,10 +67,12 @@ function screenlayout:_handleSpaceChange(visibleWorkspaces)
     self.selectedScreenInfo = self.screenInfos[oldSelectedScreenIdx or 1]
     self.selectedScreenInfo.workspace:focusSelection()
   end
+  assert(self.selectedScreenInfo, "selectedScreenInfo is nil")
 end
 
 function screenlayout:_handleWindowEvent(win, event)
   local e = hs.uielement.watcher
+  print(event.." on win "..(win and win:title() or "NIL WINDOW"))
 
   if     e.windowCreated     == event then
     self.selectedScreenInfo.workspace:addWindow(win)
@@ -82,6 +84,7 @@ function screenlayout:_handleWindowEvent(win, event)
     local workspace = self:_getWorkspaceForWindow(win)
     if workspace then
       self.selectedScreenInfo = self.screenInfos[self:_getWorkspaceIndex(workspace)]
+      print("selecting window in workspace: "..win:title())
       workspace:selectWindow(win)
     end
   end

@@ -118,6 +118,8 @@ end
 function layout:addWindow(win)
   -- Only called on root
   self.children[1]:_addWindow(win, nil)
+  print("focus window: "..self:_getSelectedNode().window:title())
+  self:focusSelection()
 end
 
 -- Adds a node to this layout that is moving in the given direction.
@@ -317,6 +319,7 @@ function layout:_addWindow(win)
     -- Descend down selection path
     self:_selection():_addWindow(win)
   else
+    print("adding window: "..win:title())
     if self.parent ~= self.root then
       self.parent:_addWindowToNode(win)
     else
@@ -324,7 +327,6 @@ function layout:_addWindow(win)
       self:_addWindowToNode(win)
     end
   end
-  self:focusSelection()
 end
 
 function layout:_addWindowToNode(win)
@@ -736,11 +738,22 @@ end
 
 -- Called when a node is newly selected by its parent (not necessarily the global selection).
 function layout:_onSelected()
+  print("onSelected: "..tostring(self))
   if self.parent.mode == mode.stacked or self.parent.mode == mode.tabbed then
     -- Bring all windows to front.
-    local windows = self:allVisibleWindows()
-    for i, win in pairs(windows) do
-      win:focus()
+    for i, node in pairs(self.children) do
+      if node ~= self.selection then
+        for j, win in pairs(node:allVisibleWindows()) do
+          print("onSelected: focusing "..win:title())
+          win:focus()
+        end
+      end
+    end
+    if self.selection then
+      for j, win in pairs(self.selection:allVisibleWindows()) do
+        print("onSelected: focusing "..win:title())
+        win:focus()
+      end
     end
   end
 end

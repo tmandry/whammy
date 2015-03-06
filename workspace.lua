@@ -63,8 +63,15 @@ end
 
 -- Toggle whether the tiling or floating layout is selected.
 function workspace:toggleFocusMode()
+  local oldSelection = self.selection
   self.selection = (self.selection == self.tilingLayout) and self.floatingLayout or self.tilingLayout
-  self.selection:bringToFrontAndFocusSelection()
+  if self.selection:isEmpty() and not oldSelection:isEmpty() then
+    -- Revert change
+    print("No windows on this layer, not toggling")
+    self.selection = oldSelection
+  else
+    self.selection:bringToFrontAndFocusSelection()
+  end
 end
 
 function workspace:_onFocusPastEnd(floating, layout, direction)
