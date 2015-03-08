@@ -499,6 +499,14 @@ function layout:_onNodeRemovedFromLayout(oldNode)
   end
 end
 
+function layout:setScreen(screen)
+  if self.root.screen ~= screen then
+    self.root.screen = screen
+    -- Update internal node sizes. Could be faster if we use something that doesn't resize windows.
+    self.root:update()
+  end
+end
+
 function layout:update()
   if self.root == self then
     self:_update(self.screen:frame())

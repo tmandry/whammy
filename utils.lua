@@ -26,4 +26,19 @@ function utils.incrementForDirection(d)
   end
 end
 
+-- Removes elements from an array if the provided function returns true on them.
+function utils.removeIf(t, fn)
+  local i     = 1
+  local count = #t
+  while i <= count do
+    if fn(t[i]) then
+      table.remove(t, i)
+      count = count - 1
+    else
+      i = i + 1
+    end
+  end
+  return t
+end
+
 return utils

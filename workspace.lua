@@ -37,6 +37,10 @@ function workspace:isEmpty()
   return self.tilingLayout:isEmpty() and self.floatingLayout:isEmpty()
 end
 
+function workspace:setScreen(screen)
+  self.tilingLayout:setScreen(screen)
+end
+
 function workspace:selectWindow(win)
   if     self.tilingLayout:selectWindow(win) then
     self.selection = self.tilingLayout
