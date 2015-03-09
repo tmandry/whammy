@@ -3,6 +3,7 @@
 -- configuration change (adding, moving, or removing a screen) is considered a space change.
 
 local layout = require 'wm.layout'
+local fnutils = require 'wm.fnutils'
 
 local spacetracker = {}
 
@@ -20,15 +21,22 @@ function spacetracker:new(workspaces, onSpaceChange)
   }
   setmetatable(obj, {__index = self})
 
-  obj.spaceWatcher = hs.spaces.watcher.new(function() spacetracker._handleSpaceChange(obj) end)
-  obj.spaceWatcher:start()
-  obj.screenWatcher = hs.screen.watcher.new(function() spacetracker._handleSpaceChange(obj) end)
-  obj.spaceWatcher:start()
-
+  obj:_setupWatchers()
   return obj
 end
 
-local function allVisibleWindows()
+function spacetracker:_setupWatchers()
+  self.spaceWatcher = hs.spaces.watcher.new(function() spacetracker._handleSpaceChange(self) end)
+  self.spaceWatcher:start()
+  self.screenWatcher = hs.screen.watcher.new(function() spacetracker._handleSpaceChange(self) end)
+  self.spaceWatcher:start()
+end
+
+function spacetracker:_allScreens()
+  return hs.screen.allScreens()
+end
+
+function spacetracker:_allVisibleWindows()
   return hs.window.allWindows()
 end
 
@@ -45,7 +53,7 @@ end
 function spacetracker:_detectWorkspaces()
   -- Detect which space we're in by looking at the windows currently on screen.
 
-  local screens = hs.screen.allScreens()
+  local screens = self:_allScreens()
 
   -- Get list of windows for each workspace.
   local workspaceInfo = {}
@@ -54,10 +62,10 @@ function spacetracker:_detectWorkspaces()
   end
 
   -- Match each window to a workspace if possible.
-  for i, win in pairs(allVisibleWindows()) do
+  for i, win in pairs(self:_allVisibleWindows()) do
     for j, info in pairs(workspaceInfo) do
-      if hs.fnutils.contains(info.windows, win) then
-        local screenIdx = hs.fnutils.indexOf(screens, win:screen())
+      if fnutils.contains(info.windows, win) then
+        local screenIdx = fnutils.indexOf(screens, win:screen())
         info.matches[screenIdx] = info.matches[screenIdx] + 1
         break
       end

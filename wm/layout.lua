@@ -8,7 +8,7 @@
 -- layout is a recursive data structure. The root node (created with :new()) has one child which is
 -- the actual top level of the layout tree. This top level node can change.
 
-local fnutils = require 'hs.fnutils'
+local fnutils = require 'wm.fnutils'
 local utils = require 'wm.utils'
 
 local layout = {}
@@ -594,6 +594,7 @@ function layout:focus(direction)
   local node, idx = self:_getSelectedNode():_moveInDirection(direction)
   if node and node.children[idx] then
     node:_setSelection(node.children[idx])
+    print("focusing: "..tostring(node))
     self:focusSelection()
   else
     -- Trying to focus past the end of the top-level container; there is an event for this.
