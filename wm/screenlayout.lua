@@ -7,6 +7,8 @@
 
 local screenlayout = {}
 
+local fnutils       = require 'wm.fnutils'
+local os            = require 'wm.os'
 local spacetracker  = require 'wm.spacetracker'
 local utils         = require 'wm.utils'
 local windowtracker = require 'wm.windowtracker'
@@ -20,7 +22,7 @@ function screenlayout:new()
   }
   setmetatable(obj, {__index = self})
 
-  for i, screen in pairs(hs.screen.allScreens()) do
+  for i, screen in pairs(os.allScreens()) do
     table.insert(obj.screenInfos, {screen = screen, workspace = nil})
   end
 
@@ -32,7 +34,7 @@ function screenlayout:new()
   obj.spacetracker = spacetracker:new(obj.workspaces, function(...) obj:_handleSpaceChange(...) end)
 
   -- Create initial workspaces for the current space.
-  for i, screen in pairs(hs.screen.allScreens()) do
+  for i, screen in pairs(os.allScreens()) do
     table.insert(obj.screenInfos, {screen=screen})
   end
   obj:_populateWorkspaces()
@@ -52,7 +54,7 @@ function screenlayout:_handleSpaceChange(screenInfos)
 
   -- Use the OS behavior to determine which screen should be focused. Default to the last focused screen.
   -- The workspace selection will be updated by a later window event.
-  local focusedWindow = hs.window.focusedWindow()
+  local focusedWindow = os.focusedWindow()
   local screenIdx = focusedWindow and self:_getScreenInfoIndex(focusedWindow:screen()) or nil
   if screenIdx then
     self.selectedScreenInfo = self.screenInfos[screenIdx]
@@ -63,7 +65,7 @@ function screenlayout:_handleSpaceChange(screenInfos)
   end
   assert(self.selectedScreenInfo, "selectedScreenInfo is nil")
 
-  hs.fnutils.each(self.screenInfos, function(info) info.workspace:setScreen(info.screen) end)
+  fnutils.each(self.screenInfos, function(info) info.workspace:setScreen(info.screen) end)
 end
 
 -- Remove workspaces that are empty and not visible.
@@ -94,7 +96,7 @@ function screenlayout:_populateWorkspaces()
 end
 
 function screenlayout:_handleWindowEvent(win, event)
-  local e = hs.uielement.watcher
+  local e = os.uiEvents
   print(event.." on win "..(win and win:title() or "NIL WINDOW"))
 
   if     e.windowCreated     == event then
@@ -160,14 +162,14 @@ function screenlayout:_createWorkspace(screen)
 end
 
 function screenlayout:_removeWorkspace(screenIdx)
-  table.remove(self.workspaces, hs.fnutils.indexOf(self.workspaces, self.screenInfos[screenIdx].workspace))
+  table.remove(self.workspaces, fnutils.indexOf(self.workspaces, self.screenInfos[screenIdx].workspace))
   self.screenInfos[screenIdx].workspace = nil
 end
 
 function screenlayout:_getWorkspaceForWindow(win)
   -- TODO add some bookkeeping to speed this up
   for i, workspace in pairs(self.workspaces) do
-    if hs.fnutils.contains(workspace:allWindows(), win) then
+    if fnutils.contains(workspace:allWindows(), win) then
       return workspace
     end
   end

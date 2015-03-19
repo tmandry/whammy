@@ -1,4 +1,5 @@
 local spacetracker = require 'wm.spacetracker'
+local os           = require 'wm.os'
 
 local FakeScreen    = require 'spec.support.FakeScreen'
 local FakeWorkspace = require 'spec.support.FakeWorkspace'
@@ -10,8 +11,8 @@ describe("spacetracker", function()
   end)
 
   local function setup(screens, visibleWindows)
-    stub(spacetracker, '_allScreens', screens)
-    stub(spacetracker, '_allVisibleWindows', visibleWindows)
+    stub(os, 'allScreens', screens)
+    stub(os, 'allVisibleWindows', visibleWindows)
   end
 
   describe("on space change", function()
@@ -42,6 +43,18 @@ describe("spacetracker", function()
       assert.are.equal(#screenInfos, 2)
       assert.are.equal(screenInfos[1].screen, screens[1])
       assert.are.equal(screenInfos[2].screen, screens[2])
+    end)
+
+    it("passes a single screenInfo object for one screen", function()
+      local screens = {FakeScreen:new(1)}
+      setup(screens, {})
+      local t = spacetracker:new({}, handler)
+
+      t:_handleSpaceChange()
+
+      assert.spy(handler).was.called()
+      assert.are.equal(#screenInfos, 1)
+      assert.are.equal(screenInfos[1].screen, screens[1])
     end)
 
     it("matches existing workspaces with matching windows", function()

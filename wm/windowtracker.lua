@@ -14,18 +14,17 @@
 
 local windowtracker = {}
 
-local fnutils = require('hs.fnutils')
-local uielement = require('hs.uielement')
-local events = uielement.watcher
+local fnutils = require 'wm.fnutils'
+local os      = require 'wm.os'
 
-windowtracker.windowCreated     = uielement.watcher.windowCreated
-windowtracker.windowDestroyed   = uielement.watcher.elementDestroyed
-windowtracker.mainWindowChanged = uielement.watcher.mainWindowChanged
-windowtracker.windowCreated     = uielement.watcher.windowCreated
-windowtracker.windowMoved       = uielement.watcher.windowMoved
-windowtracker.windowResized     = uielement.watcher.windowResized
-windowtracker.windowMinimized   = uielement.watcher.windowMinimized
-windowtracker.windowUnminimized = uielement.watcher.windowUnminimized
+windowtracker.windowCreated     = os.uiEvents.windowCreated
+windowtracker.windowDestroyed   = os.uiEvents.elementDestroyed
+windowtracker.mainWindowChanged = os.uiEvents.mainWindowChanged
+windowtracker.windowCreated     = os.uiEvents.windowCreated
+windowtracker.windowMoved       = os.uiEvents.windowMoved
+windowtracker.windowResized     = os.uiEvents.windowResized
+windowtracker.windowMinimized   = os.uiEvents.windowMinimized
+windowtracker.windowUnminimized = os.uiEvents.windowUnminimized
 
 --- windowtracker:new(events, handler) -> windowtracker
 --- Constructor
@@ -92,7 +91,7 @@ function windowtracker:_watchApp(app, starting)
 
   if fnutils.contains(self.watchEvents, windowtracker.mainWindowChanged) then
     watcher:start(
-      {windowtracker.windowCreated, windowtracker.mainWindowChanged, uielement.watcher.applicationActivated})
+      {windowtracker.windowCreated, windowtracker.mainWindowChanged, os.uiEvents.applicationActivated})
   else
     watcher:start({windowtracker.windowCreated})
   end
@@ -111,7 +110,7 @@ function windowtracker:_handleAppEvent(element, event)
   elseif event == windowtracker.mainWindowChanged and element:isWindow()
          and element:application() == hs.application.frontmostApplication() then
     self.handler(element, windowtracker.mainWindowChanged)
-  elseif event == uielement.watcher.applicationActivated then
+  elseif event == os.uiEvents.applicationActivated then
     -- Generate a mainWindowChanged event since the application changed.
     self.handler(element:mainWindow(), windowtracker.mainWindowChanged)
   end

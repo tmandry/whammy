@@ -2,8 +2,9 @@
 -- a change occurs. It treats every screen as having a separate space. This means that a screen
 -- configuration change (adding, moving, or removing a screen) is considered a space change.
 
-local layout = require 'wm.layout'
+local layout  = require 'wm.layout'
 local fnutils = require 'wm.fnutils'
+local os      = require 'wm.os'
 
 local spacetracker = {}
 
@@ -32,14 +33,6 @@ function spacetracker:_setupWatchers()
   self.spaceWatcher:start()
 end
 
-function spacetracker:_allScreens()
-  return hs.screen.allScreens()
-end
-
-function spacetracker:_allVisibleWindows()
-  return hs.window.allWindows()
-end
-
 local function times(x, num)
   local list = {}
   for i = 1, num do
@@ -53,7 +46,7 @@ end
 function spacetracker:_detectWorkspaces()
   -- Detect which space we're in by looking at the windows currently on screen.
 
-  local screens = self:_allScreens()
+  local screens = os.allScreens()
 
   -- Get list of windows for each workspace.
   local workspaceInfo = {}
@@ -62,7 +55,7 @@ function spacetracker:_detectWorkspaces()
   end
 
   -- Match each window to a workspace if possible.
-  for i, win in pairs(self:_allVisibleWindows()) do
+  for i, win in pairs(os.allVisibleWindows()) do
     for j, info in pairs(workspaceInfo) do
       if fnutils.contains(info.windows, win) then
         local screenIdx = fnutils.indexOf(screens, win:screen())
