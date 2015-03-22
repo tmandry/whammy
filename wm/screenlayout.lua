@@ -22,10 +22,6 @@ function screenlayout:new()
   }
   setmetatable(obj, {__index = self})
 
-  for i, screen in pairs(os.allScreens()) do
-    table.insert(obj.screenInfos, {screen = screen, workspace = nil})
-  end
-
   obj.windowtracker = windowtracker:new(
     {windowtracker.windowCreated, windowtracker.windowDestroyed, windowtracker.mainWindowChanged},
     function(...) obj:_handleWindowEvent(...) end)

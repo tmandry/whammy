@@ -60,7 +60,7 @@ describe("spacetracker", function()
     it("matches existing workspaces with matching windows", function()
       local screens = {FakeScreen:new(1)}
       local windows = FakeWindow.makeWindows(2, screens[1])
-      local workspaces = {FakeWorkspace:new(windows)}
+      local workspaces = {FakeWorkspace:new(screens[1], windows)}
       setup(screens, windows)
       local t = spacetracker:new(workspaces, handler)
 
@@ -72,7 +72,7 @@ describe("spacetracker", function()
     it("doesn't match existing workspaces with no matching windows", function()
       local screens = {FakeScreen:new(1)}
       local windows = FakeWindow.makeWindows(2, screens[1])
-      local workspaces = {FakeWorkspace:new({})}
+      local workspaces = {FakeWorkspace:new(screens[1], {})}
       setup(screens, windows)
       local t = spacetracker:new(workspaces, handler)
 
@@ -84,7 +84,7 @@ describe("spacetracker", function()
     it("doesn't match existing workspaces with fewer than half of known windows", function()
       local screens = {FakeScreen:new(1)}
       local windows = FakeWindow.makeWindows(3, screens[1])
-      local workspaces = {FakeWorkspace:new(windows)}
+      local workspaces = {FakeWorkspace:new(screens[1], windows)}
       setup(screens, {windows[1]})
       local t = spacetracker:new(workspaces, handler)
 
@@ -96,7 +96,10 @@ describe("spacetracker", function()
     it("picks the best match when multiple workspaces partially match", function()
       local screens = {FakeScreen:new(1)}
       local windows = FakeWindow.makeWindows(3, screens[1])
-      local workspaces = {FakeWorkspace:new({windows[1]}), FakeWorkspace:new({windows[2], windows[3]})}
+      local workspaces = {
+        FakeWorkspace:new(screens[1], {windows[1]}),
+        FakeWorkspace:new(screens[1], {windows[2], windows[3]})
+      }
       setup(screens, windows)
       local t = spacetracker:new(workspaces, handler)
 
