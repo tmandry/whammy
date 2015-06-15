@@ -65,6 +65,16 @@ function floatinglayout:removeSelectedWindows()
   return {win}
 end
 
+function floatinglayout:removeWindowById(id)
+  local idx = hs.fnutils.find(self.windows, function(w) return w:id() == id end)
+  if idx then
+    table.remove(self.windows, idx)
+    return true
+  else
+    return false
+  end
+end
+
 function floatinglayout:isEmpty()
   return #self.windows == 0
 end

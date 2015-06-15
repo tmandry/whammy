@@ -1,11 +1,11 @@
 require 'spec.support.spec_helper'
 
-local screenlayout  = require 'wm.screenlayout'
-local workspace     = require 'wm.workspace'
+local screenlayout = require 'wm.screenlayout'
+local workspace    = require 'wm.workspace'
 
-local FakeScreen        = require 'spec.support.FakeScreen'
-local FakeWorkspace     = require 'spec.support.FakeWorkspace'
-local FakeWindow        = require 'spec.support.FakeWindow'
+local FakeScreen    = require 'spec.support.FakeScreen'
+local FakeWorkspace = require 'spec.support.FakeWorkspace'
+local FakeWindow    = require 'spec.support.FakeWindow'
 
 describe("screenlayout", function()
   local old, workspaces
@@ -23,7 +23,7 @@ describe("screenlayout", function()
   end)
 
   after_each(function()
-    workspace.new     = old.workspace_new
+    workspace.new = old.workspace_new
   end)
 
   it("creates a workspace for one screen on startup", function()
@@ -64,7 +64,7 @@ describe("screenlayout", function()
       assert.spy(workspace.new).was.called(2)  -- once at creation, once at setWorkspaceForScreen
       local newWs = sl:workspaces()[#sl:workspaces()]
       assert.are_not.equal(ws, newWs)
-      assert.are.equal(screen, newWs.screen)
+      assert.are.equal(screen, newWs:screen())
     end)
 
     it("selects the new workspace if that screen was already selected", function()
@@ -103,7 +103,7 @@ describe("screenlayout", function()
       -- TODO: ws needs to be added to sl already
       local ws = FakeWorkspace:new(screens[1])
       sl:setWorkspaceForScreen(screens[2], ws)
-      assert.are.equal(screens[2], ws.screen)
+      assert.are.equal(screens[2], ws:screen())
     end)
 
     it("throws an error if the screen is not recognized", function()
@@ -179,9 +179,9 @@ describe("screenlayout", function()
       local sl = screenlayout:new(screens)
 
       sl:selectScreen(screens[1])
-      assert.are.equal(screens[1], sl:selectedWorkspace().screen)
+      assert.are.equal(screens[1], sl:selectedWorkspace():screen())
       sl:selectScreen(screens[2])
-      assert.are.equal(screens[2], sl:selectedWorkspace().screen)
+      assert.are.equal(screens[2], sl:selectedWorkspace():screen())
     end)
 
     it("throws an error if the screen is not recognized", function()

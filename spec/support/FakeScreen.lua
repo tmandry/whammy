@@ -1,6 +1,7 @@
 local FakeScreen = {}
 
 function FakeScreen:new(id)
+  id = id or 1
   local obj = {id=id}
   setmetatable(obj, self)
   return obj

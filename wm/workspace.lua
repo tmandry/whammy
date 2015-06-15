@@ -41,6 +41,10 @@ function workspace:setScreen(screen)
   self.tilingLayout:setScreen(screen)
 end
 
+function workspace:screen()
+  return self.tilingLayout.screen
+end
+
 function workspace:selectWindow(win)
   if     self.tilingLayout:selectWindow(win) then
     self.selection = self.tilingLayout
@@ -75,6 +79,14 @@ function workspace:toggleFocusMode()
     self.selection = oldSelection
   else
     self.selection:bringToFrontAndFocusSelection()
+  end
+end
+
+function workspace:removeWindowById(id)
+  if not self.tilingLayout:removeWindowById(id) then
+    return self.floatingLayout:removeWindowById(id)
+  else
+    return true
   end
 end
 

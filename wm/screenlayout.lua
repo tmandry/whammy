@@ -7,15 +7,17 @@
 
 local screenlayout = {}
 
-local fnutils   = require 'wm.fnutils'
-local utils     = require 'wm.utils'
-local workspace = require 'wm.workspace'
+local fnutils        = require 'wm.fnutils'
+local utils          = require 'wm.utils'
+local workspace      = require 'wm.workspace'
+local windowregistry = require 'wm.windowregistry'
 
 function screenlayout:new(screens)
   local obj = {
     _screenInfos = {},  -- Keeps the screen object and visible workspace for each screen.
     _workspaces  = {},  -- A list of all workspace objects.
-    _selectedScreenInfo = nil
+    _selectedScreenInfo = nil,
+    _windowRegistry = windowregistry:new()
   }
   setmetatable(obj, {__index = self})
 
@@ -36,6 +38,7 @@ end
 -- Selects the given screen.
 function screenlayout:selectScreen(screen)
   local info = self._screenInfos[self:_getScreenInfoIndex(screen)]
+  print("screen index "..self:_getScreenInfoIndex(screen).." selected")
   assert(info, "screen not recognized. Was updateScreenLayout not called?")
   self._selectedScreenInfo = info
 end
@@ -102,13 +105,12 @@ end
 
 -- Adds the window to the currently selected workspace.
 function screenlayout:addWindow(win)
-  self._selectedScreenInfo.workspace:addWindow(win)
+  self._windowRegistry:putWindowInWorkspace(win, self._selectedScreenInfo.workspace)
 end
 
 -- Removes the window from whatever workspace it is in.
 function screenlayout:removeWindow(win)
-  local workspace = self:_getWorkspaceForWindow(win)
-  if workspace then workspace:removeWindowById(win:id()) end
+  self._windowRegistry:removeWindow(win)
 end
 
 -- Called when the user requests to move focus past the end of the current workspace.
@@ -137,7 +139,7 @@ function screenlayout:_onMovePastEnd(workspace, node, direction)
     assert(self._selectedScreenInfo, "selectedScreenInfo is nil")
   end
 
-  self._screenInfos[newIdx].workspace:addNodeGoingInDirection(node, direction)
+  self._windowRegistry:moveNodeGoingInDirection(node, direction, self._screenInfos[newIdx].workspace)
 end
 
 function screenlayout:_getScreenInDirection(curIdx, direction)
@@ -159,15 +161,6 @@ end
 function screenlayout:_removeWorkspace(screenIdx)
   table.remove(self._workspaces, fnutils.indexOf(self._workspaces, self._screenInfos[screenIdx].workspace))
   self._screenInfos[screenIdx].workspace = nil
-end
-
-function screenlayout:_getWorkspaceForWindow(win)
-  -- TODO add some bookkeeping to speed this up
-  for i, workspace in pairs(self._workspaces) do
-    if fnutils.contains(workspace:allWindows(), win) then
-      return workspace
-    end
-  end
 end
 
 function screenlayout:_getScreenInfoIndex(screen)

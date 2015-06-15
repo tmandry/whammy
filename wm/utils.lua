@@ -45,4 +45,12 @@ function utils.remove(t, x)
   return utils.removeIf(t, function(y) return (x==y) end)
 end
 
+--- Returns the first element index where fn(el) is truthy.
+function utils.findIdx(t, fn)
+  for i, v in pairs(t) do
+    if fn(v) then return i end
+  end
+  return nil
+end
+
 return utils
