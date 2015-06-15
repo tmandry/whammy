@@ -1,6 +1,8 @@
 local FakeWorkspace = {}
 
+-- windows is an optional parameter for testing purposes
 function FakeWorkspace:new(screen, windows)
+  windows = windows or {}
   local obj = {screen=screen, windows=windows}
   setmetatable(obj, {__index = self})
   return obj

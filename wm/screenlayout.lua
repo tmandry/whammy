@@ -7,71 +7,80 @@
 
 local screenlayout = {}
 
-local fnutils       = require 'wm.fnutils'
-local os            = require 'wm.os'
-local spacetracker  = require 'wm.spacetracker'
-local utils         = require 'wm.utils'
-local windowtracker = require 'wm.windowtracker'
-local workspace     = require 'wm.workspace'
+local fnutils   = require 'wm.fnutils'
+local utils     = require 'wm.utils'
+local workspace = require 'wm.workspace'
 
-function screenlayout:new()
+function screenlayout:new(screens)
   local obj = {
-    screenInfos = {},  -- Keeps the screen object and visible workspace for each screen.
-    workspaces = {},   -- A list of all workspace objects.
-    selectedScreenInfo = nil
+    _screenInfos = {},  -- Keeps the screen object and visible workspace for each screen.
+    _workspaces  = {},  -- A list of all workspace objects.
+    _selectedScreenInfo = nil
   }
   setmetatable(obj, {__index = self})
 
-  obj.windowtracker = windowtracker:new(
-    {windowtracker.windowCreated, windowtracker.windowDestroyed, windowtracker.mainWindowChanged},
-    function(...) obj:_handleWindowEvent(...) end)
-  obj.windowtracker:start()
-
-  obj.spacetracker = spacetracker:new(obj.workspaces, function(...) obj:_handleSpaceChange(...) end)
-
-  -- Create initial workspaces for the current space.
-  for i, screen in pairs(os.allScreens()) do
-    table.insert(obj.screenInfos, {screen=screen})
+  -- Create initial workspaces for the current spaces.
+  for i, screen in pairs(screens) do
+    table.insert(obj._screenInfos, {screen=screen})
   end
   obj:_populateWorkspaces()
-  obj.selectedScreenInfo = obj.screenInfos[1]
+  obj._selectedScreenInfo = obj._screenInfos[1]
 
   return obj
 end
 
--- Called by spacetracker with the info on each screen (including which workspace is on it.)
-function screenlayout:_handleSpaceChange(screenInfos)
-  print("space changed")
-  local oldSelectedScreenIdx = self:_getScreenInfoIndex(self.selectedScreenInfo)
+function screenlayout:workspaces()
+  return self._workspaces
+end
 
-  self.screenInfos = screenInfos
-  self:_cullWorkspaces()
-  self:_populateWorkspaces()
+-- Selects the given screen.
+function screenlayout:selectScreen(screen)
+  local info = self._screenInfos[self:_getScreenInfoIndex(screen)]
+  assert(info, "screen not recognized. Was updateScreenLayout not called?")
+  self._selectedScreenInfo = info
+end
 
-  -- Use the OS behavior to determine which screen should be focused. Default to the last focused screen.
-  -- The workspace selection will be updated by a later window event.
-  local focusedWindow = os.focusedWindow()
-  local screenIdx = focusedWindow and self:_getScreenInfoIndex(focusedWindow:screen()) or nil
-  if screenIdx then
-    self.selectedScreenInfo = self.screenInfos[screenIdx]
-    self.selectedScreenInfo.workspace:selectWindow(focusedWindow)
-  else
-    self.selectedScreenInfo = self.screenInfos[oldSelectedScreenIdx] or self.screenInfos[1]
-    self.selectedScreenInfo.workspace:focusSelection()
+function screenlayout:selectedWorkspace()
+  return self._selectedScreenInfo.workspace
+end
+
+function screenlayout:selectedScreen()
+  return self._selectedScreenInfo.screen
+end
+
+-- Forces the selected window to be focused.
+function screenlayout:focusSelection()
+  self._selectedScreenInfo.workspace:focusSelection()
+end
+
+function screenlayout:setWorkspaceForScreen(screen, ws)
+  local idx = self:_getScreenInfoIndex(screen)
+  assert(idx, "screen not recognized. Was updateScreenLayout not called?")
+
+  local oldWorkspace = self._screenInfos[idx].workspace
+  if ws ~= oldWorkspace then
+    -- Cull old workspace if it's empty.
+    if oldWorkspace:isEmpty() then
+      utils.remove(self._workspaces, oldWorkspace)
+    end
+
+    if ws == nil then
+      ws = self:_createWorkspace(screen)
+    else
+      ws:setScreen(screen)
+    end
+    self._screenInfos[idx].workspace = ws
   end
-  assert(self.selectedScreenInfo, "selectedScreenInfo is nil")
-
-  fnutils.each(self.screenInfos, function(info) info.workspace:setScreen(info.screen) end)
 end
 
 -- Remove workspaces that are empty and not visible.
 function screenlayout:_cullWorkspaces()
-  utils.removeIf(self.workspaces, function(workspace)
+  utils.removeIf(self._workspaces, function(workspace)
     if not workspace:isEmpty() then
       -- Non-empty
       return false
     else
-      for j, info in pairs(self.screenInfos) do
+      for j, info in pairs(self._screenInfos) do
         if info.workspace == workspace then
           -- Visible
           return false
@@ -84,45 +93,35 @@ end
 
 -- Create empty workspaces on screens that don't have one.
 function screenlayout:_populateWorkspaces()
-  for i, info in pairs(self.screenInfos) do
+  for i, info in pairs(self._screenInfos) do
     if not info.workspace then
       info.workspace = self:_createWorkspace(info.screen)
     end
   end
 end
 
-function screenlayout:_handleWindowEvent(win, event)
-  local e = os.uiEvents
-  print(event.." on win "..(win and win:title() or "NIL WINDOW"))
+-- Adds the window to the currently selected workspace.
+function screenlayout:addWindow(win)
+  self._selectedScreenInfo.workspace:addWindow(win)
+end
 
-  if     e.windowCreated     == event then
-    self.selectedScreenInfo.workspace:addWindow(win)
-  elseif e.elementDestroyed  == event then
-    local workspace = self:_getWorkspaceForWindow(win)
-    if workspace then workspace:removeWindowById(win:id()) end
-  elseif e.mainWindowChanged == event then
-    -- Select the correct workspace and tell it to select this window.
-    local workspace = self:_getWorkspaceForWindow(win)
-    if workspace then
-      print("selecting window in workspace: "..win:title())
-      self.selectedScreenInfo = self.screenInfos[self:_getWorkspaceIndex(workspace)]
-      assert(self.selectedScreenInfo, "selectedScreenInfo is nil")
-      workspace:selectWindow(win)
-    end
-  end
+-- Removes the window from whatever workspace it is in.
+function screenlayout:removeWindow(win)
+  local workspace = self:_getWorkspaceForWindow(win)
+  if workspace then workspace:removeWindowById(win:id()) end
 end
 
 -- Called when the user requests to move focus past the end of the current workspace.
 function screenlayout:_onFocusPastEnd(workspace, direction)
   local curIdx = self:_getWorkspaceIndex(workspace)
   local newIdx = self:_getScreenInDirection(curIdx, direction)
-  local newWorkspace = self.screenInfos[newIdx].workspace
+  local newWorkspace = self._screenInfos[newIdx].workspace
   if newWorkspace then
-    self.selectedScreenInfo = self.screenInfos[newIdx]
+    self._selectedScreenInfo = self._screenInfos[newIdx]
     newWorkspace:selectWindowGoingInDirection(direction)
     newWorkspace:focusSelection()
   end
-  assert(self.selectedScreenInfo, "selectedScreenInfo is nil")
+  assert(self._selectedScreenInfo, "selectedScreenInfo is nil")
 end
 
 -- Called when the user requests to move a node past the end of the current workspace.
@@ -133,18 +132,18 @@ function screenlayout:_onMovePastEnd(workspace, node, direction)
   node:removeFromParent()
 
   -- Keep current screen selected, unless it's empty
-  if not self.screenInfos[curIdx].workspace:focusSelection() then
-    self.selectedScreenInfo = self.screenInfos[newIdx]
-    assert(self.selectedScreenInfo, "selectedScreenInfo is nil")
+  if not self._screenInfos[curIdx].workspace:focusSelection() then
+    self._selectedScreenInfo = self._screenInfos[newIdx]
+    assert(self._selectedScreenInfo, "selectedScreenInfo is nil")
   end
 
-  self.screenInfos[newIdx].workspace:addNodeGoingInDirection(node, direction)
+  self._screenInfos[newIdx].workspace:addNodeGoingInDirection(node, direction)
 end
 
 function screenlayout:_getScreenInDirection(curIdx, direction)
   -- TODO actually implement
   local newIdx = curIdx + 1
-  if newIdx > #self.screenInfos then newIdx = 1 end
+  if newIdx > #self._screenInfos then newIdx = 1 end
   return newIdx
 end
 
@@ -153,18 +152,18 @@ function screenlayout:_createWorkspace(screen)
   workspace.onFocusPastEnd = function(...) self:_onFocusPastEnd(...) end
   workspace.onMovePastEnd = function(...) self:_onMovePastEnd(...) end
 
-  table.insert(self.workspaces, workspace)
+  table.insert(self._workspaces, workspace)
   return workspace
 end
 
 function screenlayout:_removeWorkspace(screenIdx)
-  table.remove(self.workspaces, fnutils.indexOf(self.workspaces, self.screenInfos[screenIdx].workspace))
-  self.screenInfos[screenIdx].workspace = nil
+  table.remove(self._workspaces, fnutils.indexOf(self._workspaces, self._screenInfos[screenIdx].workspace))
+  self._screenInfos[screenIdx].workspace = nil
 end
 
 function screenlayout:_getWorkspaceForWindow(win)
   -- TODO add some bookkeeping to speed this up
-  for i, workspace in pairs(self.workspaces) do
+  for i, workspace in pairs(self._workspaces) do
     if fnutils.contains(workspace:allWindows(), win) then
       return workspace
     end
@@ -172,7 +171,7 @@ function screenlayout:_getWorkspaceForWindow(win)
 end
 
 function screenlayout:_getScreenInfoIndex(screen)
-  for i, info in pairs(self.screenInfos) do
+  for i, info in pairs(self._screenInfos) do
     if info.screen == screen then
       return i
     end
@@ -180,7 +179,7 @@ function screenlayout:_getScreenInfoIndex(screen)
 end
 
 function screenlayout:_getWorkspaceIndex(workspace)
-  for i, info in pairs(self.screenInfos) do
+  for i, info in pairs(self._screenInfos) do
     if info.workspace == workspace then
       return i
     end

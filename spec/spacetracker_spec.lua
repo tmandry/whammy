@@ -15,6 +15,13 @@ describe("spacetracker", function()
     stub(os, 'allVisibleWindows', visibleWindows)
   end
 
+  -- spacetracker expects a function that always returns the current list of workspaces; this builds
+  -- such a function with a static table of workspaces.
+  local function workspaceFn(val)
+    local function f() return val end
+    return f
+  end
+
   describe("on space change", function()
     local screenInfos = nil
     local handler = nil
@@ -25,7 +32,7 @@ describe("spacetracker", function()
 
     it("calls the given handler function", function()
       setup({}, {})
-      local t = spacetracker:new({}, handler)
+      local t = spacetracker:new(workspaceFn({}), handler)
 
       t:_handleSpaceChange()
 
@@ -35,7 +42,7 @@ describe("spacetracker", function()
     it("passes a screenInfo object for each screen", function()
       local screens = {FakeScreen:new(1), FakeScreen:new(2)}
       setup(screens, {})
-      local t = spacetracker:new({}, handler)
+      local t = spacetracker:new(workspaceFn({}), handler)
 
       t:_handleSpaceChange()
 
@@ -48,7 +55,7 @@ describe("spacetracker", function()
     it("passes a single screenInfo object for one screen", function()
       local screens = {FakeScreen:new(1)}
       setup(screens, {})
-      local t = spacetracker:new({}, handler)
+      local t = spacetracker:new(workspaceFn({}), handler)
 
       t:_handleSpaceChange()
 
@@ -62,7 +69,7 @@ describe("spacetracker", function()
       local windows = FakeWindow.makeWindows(2, screens[1])
       local workspaces = {FakeWorkspace:new(screens[1], windows)}
       setup(screens, windows)
-      local t = spacetracker:new(workspaces, handler)
+      local t = spacetracker:new(workspaceFn(workspaces), handler)
 
       t:_handleSpaceChange()
 
@@ -74,7 +81,7 @@ describe("spacetracker", function()
       local windows = FakeWindow.makeWindows(2, screens[1])
       local workspaces = {FakeWorkspace:new(screens[1], {})}
       setup(screens, windows)
-      local t = spacetracker:new(workspaces, handler)
+      local t = spacetracker:new(workspaceFn(workspaces), handler)
 
       t:_handleSpaceChange()
 
@@ -86,7 +93,7 @@ describe("spacetracker", function()
       local windows = FakeWindow.makeWindows(3, screens[1])
       local workspaces = {FakeWorkspace:new(screens[1], windows)}
       setup(screens, {windows[1]})
-      local t = spacetracker:new(workspaces, handler)
+      local t = spacetracker:new(workspaceFn(workspaces), handler)
 
       t:_handleSpaceChange()
 
@@ -101,7 +108,7 @@ describe("spacetracker", function()
         FakeWorkspace:new(screens[1], {windows[2], windows[3]})
       }
       setup(screens, windows)
-      local t = spacetracker:new(workspaces, handler)
+      local t = spacetracker:new(workspaceFn(workspaces), handler)
 
       t:_handleSpaceChange()
 

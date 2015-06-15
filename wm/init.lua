@@ -2,8 +2,8 @@ local wm = {}
 
 require('wm.os').setup()
 
-local screenlayout = require('wm.screenlayout')
+local controller = require('wm.controller')
 
-wm.screenlayout = screenlayout:new()
+wm.controller = controller:new()
 
 return wm

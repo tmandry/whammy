@@ -41,4 +41,8 @@ function utils.removeIf(t, fn)
   return t
 end
 
+function utils.remove(t, x)
+  return utils.removeIf(t, function(y) return (x==y) end)
+end
+
 return utils

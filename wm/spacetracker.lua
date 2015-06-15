@@ -10,14 +10,14 @@ local spacetracker = {}
 
 -- Creates a new space tracker.
 --
--- workspaces is a table of all workspaces, which you may change.
+-- workspacesFn is a function that returns a table of all workspaces whenever it is called.
 --
 -- onSpaceChange is a function that will be called with the list of
 -- {screen=<screen>, workspace=<workspace|nil>}
 -- objects.
-function spacetracker:new(workspaces, onSpaceChange)
+function spacetracker:new(workspacesFn, onSpaceChange)
   local obj = {
-    workspaces = workspaces,
+    workspacesFn = workspacesFn,
     onSpaceChange = onSpaceChange
   }
   setmetatable(obj, {__index = self})
@@ -47,10 +47,11 @@ function spacetracker:_detectWorkspaces()
   -- Detect which space we're in by looking at the windows currently on screen.
 
   local screens = os.allScreens()
+  local workspaces = self.workspacesFn()
 
   -- Get list of windows for each workspace.
   local workspaceInfo = {}
-  for i, workspace in pairs(self.workspaces) do
+  for i, workspace in pairs(workspaces) do
     workspaceInfo[i] = {windows = workspace:allWindows(), matches = times(0, #screens)}
   end
 
@@ -81,7 +82,7 @@ function spacetracker:_detectWorkspaces()
   screenInfos = {}
   for i, screen in pairs(screens) do
     local idx = bestMatches[i]
-    local workspace = (idx and self.workspaces[idx] or nil)
+    local workspace = (idx and workspaces[idx] or nil)
     screenInfos[i] = {screen=screen, workspace=workspace}
   end
 
