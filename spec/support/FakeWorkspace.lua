@@ -39,6 +39,7 @@ function FakeWorkspace:screen()
 end
 
 function FakeWorkspace:selectWindow(window)
+  self.selection = window
 end
 
 function FakeWorkspace:toggleFloating()

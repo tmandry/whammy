@@ -118,7 +118,6 @@ end
 function layout:addWindow(win)
   -- Only called on root
   self.children[1]:_addWindow(win, nil)
-  print("focus window: "..self:_getSelectedNode().window:title())
   self:focusSelection()
 end
 

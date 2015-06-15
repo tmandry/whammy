@@ -90,7 +90,7 @@ describe("screenlayout", function()
       local screen = FakeScreen:new(1)
       local sl = screenlayout:new({screen})
 
-      sl:addWindow(FakeWindow:new(1))
+      sl:addWindow(FakeWindow:new(1), screen)
       local workspace = sl:workspaces()[1]
       sl:setWorkspaceForScreen(screen, nil)
       assert.is.in_array(sl:workspaces(), workspace)
@@ -121,7 +121,7 @@ describe("screenlayout", function()
     it("adds the window to the selected workspace", function()
       local sl = screenlayout:new({FakeScreen:new(1)})
 
-      local window = FakeWindow:new(1)
+      local window = FakeWindow:new(1, screen)
       sl:addWindow(window)
       assert.is.in_array(sl:workspaces()[1]:allWindows(), window)
     end)
@@ -133,7 +133,7 @@ describe("screenlayout", function()
       local sl = screenlayout:new({screen})
       local ws = sl:workspaces()[1]
 
-      local window = FakeWindow:new(1)
+      local window = FakeWindow:new(1, screen)
       sl:addWindow(window)
       sl:removeWindow(window)
 
@@ -145,7 +145,7 @@ describe("screenlayout", function()
       local sl = screenlayout:new({screen})
       local ws = sl:workspaces()[1]
 
-      local window = FakeWindow:new(1)
+      local window = FakeWindow:new(1, screen)
       sl:addWindow(window)
       sl:setWorkspaceForScreen(screen, nil)
       sl:removeWindow(window)
@@ -154,9 +154,10 @@ describe("screenlayout", function()
     end)
 
     it("does nothing if the window is not recognized", function()
-      local sl = screenlayout:new({FakeScreen:new(1)})
+      local screen = FakeScreen:new(1)
+      local sl = screenlayout:new({screen})
 
-      local window = FakeWindow:new(1)
+      local window = FakeWindow:new(1, screen)
       assert.has_no.errors(function()
         sl:removeWindow(window)
       end)
@@ -192,6 +193,47 @@ describe("screenlayout", function()
       assert.has_error(function()
         sl:selectScreen(otherScreen)
       end)
+    end)
+  end)
+
+  describe("selectWindow", function()
+    it("selects the screen that corresponds to the window's workspace", function()
+      local screens = {FakeScreen:new(1), FakeScreen:new(2)}
+      local sl = screenlayout:new(screens)
+      local window = FakeWindow:new(1, screens[2])
+
+      sl:selectScreen(screens[2])
+      sl:addWindow(window)  -- will be added to screen 2
+      sl:selectScreen(screens[1])
+      sl:selectWindow(window)
+
+      assert.are.equal(screens[2], sl:selectedWorkspace():screen())
+    end)
+
+    it("selects the window in the workspace", function()
+      local screen = FakeScreen:new(1)
+      local sl = screenlayout:new({screen})
+      local window1 = FakeWindow:new(1, screen)
+      local window2 = FakeWindow:new(2, screen)
+
+      sl:addWindow(window1)
+      sl:addWindow(window2)
+
+      sl:selectWindow(window1)
+      assert.equals(window1, sl:selectedWorkspace().selection)
+      sl:selectWindow(window2)
+      assert.equals(window2, sl:selectedWorkspace().selection)
+    end)
+
+    it("does nothing if the window is not in a workspace", function()
+      local screens = {FakeScreen:new(1), FakeScreen:new(2)}
+      local sl = screenlayout:new(screens)
+      local window = FakeWindow:new(1, screens[2])
+
+      assert.has_no_errors(function()
+        sl:selectWindow(window)
+      end)
+      assert.equals(screens[1], sl:selectedScreen())
     end)
   end)
 end)

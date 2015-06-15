@@ -40,9 +40,7 @@ function controller:_handleWindowEvent(win, event)
   elseif e.elementDestroyed  == event then
     self.screenLayout:removeWindow(win)
   elseif e.mainWindowChanged == event then
-    -- Select the correct screen and tell its workspace to select this window.
-    self.screenLayout:selectScreen(win:screen())
-    self.screenLayout:selectedWorkspace():selectWindow(win)
+    self.screenLayout:selectWindow(win)
   end
 end
 

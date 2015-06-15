@@ -43,6 +43,16 @@ function screenlayout:selectScreen(screen)
   self._selectedScreenInfo = info
 end
 
+-- If the window is in a workspace, selects that workspace and selects the window in the workspace.
+function screenlayout:selectWindow(win)
+  local ws = self._windowRegistry:getWorkspaceForWindow(win)
+  if ws then
+    assert(ws:screen() == win:screen(), "window is not in expected screen")
+    self:selectScreen(ws:screen())
+    ws:selectWindow(win)
+  end
+end
+
 function screenlayout:selectedWorkspace()
   return self._selectedScreenInfo.workspace
 end
