@@ -27,6 +27,10 @@ Copy the [sample config](https://github.com/tmandry/wammy/wiki/Sample-Config) to
 
 Finally, click the Hammerspoon icon and "Reload Config", and wammy is running.
 
+## Usage
+
+**Learn how to use i3 ([video](https://www.youtube.com/watch?v=Wx0eNaGzAZU), [user guide](https://i3wm.org/docs/userguide.html)).** The commands in the [sample config](https://github.com/tmandry/wammy/wiki/Sample-Config) are similar to its default commands, with the alt key being used and _actual vim keys (hjkl)_ being used to control direction.
+
 ## Development
 
 ### Running tests
