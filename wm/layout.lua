@@ -182,7 +182,7 @@ function layout:selectParent()
     -- Don't allow selecting root node
     self.selectParent = self.root.children[1]
   end
-  hs.alert.show(self.selectedParent)
+  hs.alert.show(tostring(self.selectedParent))
 end
 
 function layout:selectChild()
@@ -197,7 +197,7 @@ function layout:selectChild()
 end
 
 function layout:showFocus()
-  hs.alert.show(self:_getSelectedNode())
+  hs.alert.show(tostring(self:_getSelectedNode()))
 end
 
 function layout:closeSelected()
