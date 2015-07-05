@@ -104,7 +104,6 @@ function windowtracker:_watchApp(app, starting)
 end
 
 function windowtracker:_handleAppEvent(element, event)
-  print("wt app event: "..event)
   if     event == windowtracker.windowCreated then
     self:_watchWindow(element)  -- will call handler and ensure no duplicates
   elseif event == windowtracker.mainWindowChanged and element:isWindow()

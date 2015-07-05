@@ -86,6 +86,10 @@ function screenlayout:setWorkspaceForScreen(screen, ws)
   end
 end
 
+function screenlayout:updateScreenLayout(allScreens)
+  print("screenlayout:updateScreenLayout: implement me!")
+end
+
 -- Remove workspaces that are empty and not visible.
 function screenlayout:_cullWorkspaces()
   utils.removeIf(self._workspaces, function(workspace)

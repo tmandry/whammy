@@ -81,5 +81,13 @@ describe("windowregistry", function()
 
       assert.equals(nil, windowRegistry:getWorkspaceForWindow(win))
     end)
+
+    it("accepts nil as an argument and returns nil", function()
+      local ret
+      assert.has_no.errors(function()
+        ret = windowRegistry:getWorkspaceForWindow(nil)
+      end)
+      assert.equals(nil, ret)
+    end)
   end)
 end)

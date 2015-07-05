@@ -34,7 +34,7 @@ end
 
 -- Returns the workspace a window is in, or nil.
 function windowregistry:getWorkspaceForWindow(win)
-  return self.windowWorkspaces[win:id()]
+  return (win and self.windowWorkspaces[win:id()] or nil)
 end
 
 -- Calls addNodeGoingInDirection on the new workspace, recording the windows that are moving.
