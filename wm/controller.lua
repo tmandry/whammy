@@ -1,16 +1,16 @@
 local controller = {}
 
-local fnutils       = require 'wm.fnutils'
-local os            = require 'wm.os'
-local screenlayout  = require 'wm.screenlayout'
-local spacetracker  = require 'wm.spacetracker'
-local windowtracker = require 'wm.windowtracker'
+local fnutils         = require 'wm.fnutils'
+local os              = require 'wm.os'
+local screenlayout    = require 'wm.screenlayout'
+local windowtracker   = require 'wm.windowtracker'
+local workspacefinder = require 'wm.workspacefinder'
 
 function controller:new()
   local obj = {}
   setmetatable(obj, {__index = self})
 
-  -- The root of our WM tree; all commands are routed here.
+  -- The root of our WM tree; all commands are routed through here.
   obj.screenLayout = screenlayout:new(os.allScreens())
 
   -- Tracks events on windows.
@@ -20,9 +20,8 @@ function controller:new()
   obj.windowTracker:start()
 
   -- Tracks space changes.
-  obj.spaceTracker = spacetracker:new(
-    function() return obj.screenLayout:workspaces() end,
-    function(...) obj:_handleSpaceChange(...) end)
+  obj.spaceWatcher = hs.spaces.watcher.new(function() obj:_handleSpaceChange() end)
+  obj.spaceWatcher:start()
 
   -- Tracks screen layout changes.
   obj.screenWatcher = hs.screen.watcher.new(function(...) obj:_handleScreenLayoutChange(...) end)
@@ -44,8 +43,10 @@ function controller:_handleWindowEvent(win, event)
   end
 end
 
-function controller:_handleSpaceChange(screenInfos)
-  -- Called by spacetracker with the info on each screen (including which workspace is on it.)
+function controller:_handleSpaceChange()
+  -- Get the workspace on each screen and update the screenLayout.
+  local screenInfos =
+    workspacefinder.find(self.screenLayout:workspaces(), os.allScreens(), os.allVisibleWindows())
   fnutils.each(screenInfos, function(info)
     self.screenLayout:setWorkspaceForScreen(info.screen, info.workspace)
   end)
