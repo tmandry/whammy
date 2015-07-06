@@ -28,7 +28,7 @@ function workspacefinder.find(workspaces, screens, windows)
   -- Match each window to a workspace if possible.
   for i, win in pairs(windows) do
     for j, info in pairs(workspaceInfo) do
-      if fnutils.contains(info.windows, win) then
+      if win:screen() and fnutils.contains(info.windows, win) then
         local screenIdx = fnutils.indexOf(screens, win:screen())
         info.matches[screenIdx] = info.matches[screenIdx] + 1
         break

@@ -12,7 +12,7 @@ local utils          = require 'wm.utils'
 local workspace      = require 'wm.workspace'
 local windowregistry = require 'wm.windowregistry'
 
-function screenlayout:new(screens)
+function screenlayout:new(allScreens)
   local obj = {
     _screenInfos = {},  -- Keeps the screen object and visible workspace for each screen.
     _workspaces  = {},  -- A list of all workspace objects.
@@ -22,11 +22,7 @@ function screenlayout:new(screens)
   setmetatable(obj, {__index = self})
 
   -- Create initial workspaces for the current spaces.
-  for i, screen in pairs(screens) do
-    table.insert(obj._screenInfos, {screen=screen})
-  end
-  obj:_populateWorkspaces()
-  obj._selectedScreenInfo = obj._screenInfos[1]
+  obj:updateScreenLayout(allScreens)
 
   return obj
 end
@@ -87,7 +83,17 @@ function screenlayout:setWorkspaceForScreen(screen, ws)
 end
 
 function screenlayout:updateScreenLayout(allScreens)
-  print("screenlayout:updateScreenLayout: implement me!")
+  -- Create initial workspaces for the current spaces.
+  self._screenInfos = {}
+  for i, screen in pairs(allScreens) do
+    table.insert(self._screenInfos, {screen=screen})
+  end
+  self:_populateWorkspaces()
+  self._selectedScreenInfo = self._screenInfos[1]
+end
+
+function screenlayout:numScreens()
+  return #self._screenInfos
 end
 
 -- Remove workspaces that are empty and not visible.

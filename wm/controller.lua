@@ -60,8 +60,11 @@ function controller:_handleSpaceChange()
 end
 
 function controller:_handleScreenLayoutChange()
-  local allScreens = os.allScreens()
-  self.screenLayout:updateScreenLayout(allScreens)
+  -- Prep screenLayout with the new set of screens.
+  self.screenLayout:updateScreenLayout(os.allScreens())
+
+  -- After that, handle as if it were a space change.
+  self:_handleSpaceChange()
 end
 
 return controller

@@ -61,5 +61,19 @@ describe("workspacefinder", function()
 
       assert.are.equal(screenInfos[1].workspace, workspaces[2])
     end)
+
+    it("handles windows which return nil for :screen()", function()
+      -- This is a problem during screen layout changes. The actual behavior doesn't matter, because
+      -- everything will be redone when the layout change is complete, but workspacefinder must not
+      -- raise an error.
+
+      local screens = {FakeScreen:new(1)}
+      local windows = {FakeWindow:new(1, nil)}
+      local workspaces = { FakeWorkspace:new(screens[1], {windows[1]}) }
+
+      assert.has_no.errors(function()
+        local screenInfos = workspacefinder.find(workspaces, screens, windows)
+      end)
+    end)
   end)
 end)
