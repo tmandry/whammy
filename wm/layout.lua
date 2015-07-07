@@ -69,6 +69,7 @@ function layout:new(screen)
   root.fullscreenNode = nil
   root.orientation = nil
   root.root = root
+  root.frame = screen:frame()
 
   -- The top level node is where the actual layout tree begins.
   -- It may be replaced, but one will always exist.
@@ -498,8 +499,9 @@ function layout:_onNodeRemovedFromLayout(oldNode)
   end
 end
 
+-- Sets the screen of the layout and updates the frame / window sizing, if necessary.
 function layout:setScreen(screen)
-  if self.root.screen ~= screen then
+  if self.root.screen ~= screen or not utils.rectEquals(self.root.frame, screen:frame()) then
     self.root.screen = screen
     -- Update internal node sizes. Could be faster if we use something that doesn't resize windows.
     self.root:update()

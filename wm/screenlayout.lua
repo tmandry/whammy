@@ -75,11 +75,12 @@ function screenlayout:setWorkspaceForScreen(screen, ws)
 
     if ws == nil then
       ws = self:_createWorkspace(screen)
-    else
-      ws:setScreen(screen)
     end
     self._screenInfos[idx].workspace = ws
   end
+
+  -- Make sure screen size gets updated by always calling setScreen.
+  ws:setScreen(screen)
 end
 
 function screenlayout:updateScreenLayout(allScreens)

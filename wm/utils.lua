@@ -26,6 +26,10 @@ function utils.incrementForDirection(d)
   end
 end
 
+function utils.rectEquals(a, b)
+  return a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h
+end
+
 -- Removes elements from an array if the provided function returns true on them.
 function utils.removeIf(t, fn)
   local i     = 1

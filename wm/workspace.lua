@@ -4,7 +4,7 @@
 
 local workspace = {}
 
-local layout = require 'wm.layout'
+local layout         = require 'wm.layout'
 local floatinglayout = require 'wm.floatinglayout'
 
 function workspace:new(screen)
