@@ -7,8 +7,10 @@ Whammy is a clone of the [i3 window manager](https://i3wm.org/) for OS X, built 
 ### Install Hammerspoon
 Whammy requires [Hammerspoon](http://www.hammerspoon.org/), and currently you must install from source. To do so:
 
+[Install Cocoapods](https://guides.cocoapods.org/using/getting-started.html).
 ```sh
-$ git clone https://github.com/Hammerspoon/hammerspoon.git
+$ git clone https://github.com/tmandry/hammerspoon.git
+$ git checkout patch-finder
 $ open hammerspoon/Hammerspoon.xcodeproj
 ```
 
